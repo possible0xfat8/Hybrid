@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 200" width="980" height="200" fill="none">
+  <defs>
+    <filter id="logoCardShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- Hemi Crazy 8 Official Split Circle Emblem (x: 15..185, y: 15..185) -->
+  <g transform="translate(10, 0)">
+    <!-- Left Solid Orange Semicircle with angled cut -->
+    <path d="M 91 15 A 85 85 0 1 0 101 185 L 91 15 Z" fill="#FF4600" />
+
+    <!-- Right Solid Orange Semicircle with angled cut -->
+    <path d="M 103 15 A 85 85 0 1 1 113 185 L 103 15 Z" fill="#FF4600" />
+
+    <!-- 3 Fanned Cards matching user's logo -->
+    <!-- Card 1 (Back left - White) -->
+    <g transform="translate(86, 100) rotate(-22)">
+      <rect x="-20" y="-31" width="40" height="62" rx="5" ry="5" fill="#FFFFFF" stroke="#111318" stroke-width="2.2" filter="url(#logoCardShadow)"/>
+    </g>
+
+    <!-- Card 2 (Middle - White) -->
+    <g transform="translate(94, 100) rotate(-10)">
+      <rect x="-20" y="-31" width="40" height="62" rx="5" ry="5" fill="#FFFFFF" stroke="#111318" stroke-width="2.2" filter="url(#logoCardShadow)"/>
+    </g>
+
+    <!-- Card 3 (Front right - Black with white border & Orange Diamond) -->
+    <g transform="translate(105, 100) rotate(10)">
+      <rect x="-20" y="-31" width="40" height="62" rx="5" ry="5" fill="#11141A" stroke="#FFFFFF" stroke-width="3" filter="url(#logoCardShadow)"/>
+      <polygon points="0,-9.5 7.5,0 0,9.5 -7.5,0" fill="#FF4600"/>
+    </g>
+  </g>
+
+  <!-- Typography "Hemi" -->
+  <text x="215" y="140" font-family="'Montserrat', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="900" font-size="118" fill="#FFFFFF" letter-spacing="-2px">
+    Hemi
+  </text>
+
+  <!-- Typography "Crazy 8" -->
+  <text x="525" y="140" font-family="'Montserrat', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="900" font-size="118" fill="#FF4600" letter-spacing="-2px">
+    Crazy 8
+  </text>
+</svg>

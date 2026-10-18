@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 200" width="1180" height="200" fill="none">
+  <defs>
+    <filter id="c4Glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+    <linearGradient id="discOrange" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF6B35"/>
+      <stop offset="100%" stop-color="#FF4600"/>
+    </linearGradient>
+    <linearGradient id="discGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE066"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+    <linearGradient id="beamGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF4600" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#F59E0B" stop-opacity="0.8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Hemi Split Circle Emblem (x: 10..190, y: 15..185) -->
+  <g transform="translate(10, 0)">
+    <!-- Left Solid Orange Semicircle with angled cut -->
+    <path d="M 91 15 A 85 85 0 1 0 101 185 L 91 15 Z" fill="#FF4600" />
+
+    <!-- Right Solid Orange Semicircle with angled cut -->
+    <path d="M 103 15 A 85 85 0 1 1 113 185 L 103 15 Z" fill="#FF4600" />
+
+    <!-- Center Connected 4 Grid Discs Feature -->
+    <!-- Connecting Energy Streak Line -->
+    <line x1="68" y1="132" x2="134" y2="68" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round" filter="url(#c4Glow)"/>
+    <line x1="68" y1="132" x2="134" y2="68" stroke="url(#beamGrad)" stroke-width="2.5" stroke-linecap="round"/>
+
+    <!-- Disc 1 (Bottom Left - Dark Slate Core with White Ring) -->
+    <circle cx="68" cy="132" r="14" fill="#0E1217" stroke="#FFFFFF" stroke-width="3" filter="url(#c4Glow)"/>
+    <circle cx="68" cy="132" r="8" fill="url(#discOrange)"/>
+
+    <!-- Disc 2 (Mid-Left) -->
+    <circle cx="90" cy="110" r="14" fill="#0E1217" stroke="#FFFFFF" stroke-width="3" filter="url(#c4Glow)"/>
+    <circle cx="90" cy="110" r="8" fill="url(#discGold)"/>
+
+    <!-- Disc 3 (Mid-Right) -->
+    <circle cx="112" cy="88" r="14" fill="#0E1217" stroke="#FFFFFF" stroke-width="3" filter="url(#c4Glow)"/>
+    <circle cx="112" cy="88" r="8" fill="url(#discOrange)"/>
+
+    <!-- Disc 4 (Top Right - Winning 4th Disc) -->
+    <circle cx="134" cy="66" r="15" fill="#FF4600" stroke="#FFFFFF" stroke-width="3.5" filter="url(#c4Glow)"/>
+    <circle cx="134" cy="66" r="8" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Typography "Hemi" -->
+  <text x="215" y="140" font-family="'Montserrat', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="900" font-size="118" fill="#FFFFFF" letter-spacing="-2px">
+    Hemi
+  </text>
+
+  <!-- Typography "Connect 4" -->
+  <text x="505" y="140" font-family="'Montserrat', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-weight="900" font-size="118" fill="#FF4600" letter-spacing="-2px">
+    Connect 4
+  </text>
+</svg>

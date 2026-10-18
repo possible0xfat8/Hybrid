@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 360" width="240" height="360">
+  <defs>
+    <!-- Card Glow & Outer Shadow -->
+    <filter id="hemiCardGlow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#FF4600" flood-opacity="0.35"/>
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.8"/>
+    </filter>
+    <radialGradient id="centerOrangeAura" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#FF4600" stop-opacity="0.25" />
+      <stop offset="60%" stop-color="#FF4600" stop-opacity="0.05" />
+      <stop offset="100%" stop-color="#0E1217" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="cardOrangeBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF5500" />
+      <stop offset="100%" stop-color="#FF3700" />
+    </linearGradient>
+  </defs>
+
+  <!-- Card Obsidian Body -->
+  <rect
+    x="6"
+    y="6"
+    width="228"
+    height="348"
+    rx="20"
+    ry="20"
+    fill="#0E1217"
+    stroke="url(#cardOrangeBorder)"
+    stroke-width="5"
+    filter="url(#hemiCardGlow)"
+  />
+
+  <!-- Subtle Inner Border Frame -->
+  <rect
+    x="14"
+    y="14"
+    width="212"
+    height="332"
+    rx="14"
+    ry="14"
+    fill="none"
+    stroke="#FF4600"
+    stroke-width="1.2"
+    stroke-opacity="0.35"
+  />
+
+  <!-- Subtle Ambient Radial Glow Behind Logo -->
+  <circle cx="120" cy="180" r="85" fill="url(#centerOrangeAura)" />
+
+  <!-- The Official Hemi Network Logo in Center -->
+  <g id="hemi-center-logo" transform="translate(120, 180)">
+    <!-- Left Hemisphere -->
+    <path
+      d="M -9 -48 A 50 50 0 0 0 -9 48 L -9 18 A 20 20 0 0 1 -9 -18 Z"
+      fill="#FF4600"
+    />
+    <!-- Right Hemisphere -->
+    <path
+      d="M 9 -48 A 50 50 0 0 1 9 48 L 9 18 A 20 20 0 0 0 9 -18 Z"
+      fill="#FF4600"
+    />
+  </g>
+
+  <!-- Top-Left Corner Small Hemi Mark -->
+  <g transform="translate(30, 36) scale(0.24)">
+    <path d="M -7 -36 A 38 38 0 0 0 -7 36 L -7 14 A 14 14 0 0 1 -7 -14 Z" fill="#FF4600" />
+    <path d="M 7 -36 A 38 38 0 0 1 7 36 L 7 14 A 14 14 0 0 0 7 -14 Z" fill="#FF4600" />
+  </g>
+
+  <!-- Bottom-Right Corner Small Hemi Mark (Inverted) -->
+  <g transform="translate(210, 324) scale(0.24) rotate(180)">
+    <path d="M -7 -36 A 38 38 0 0 0 -7 36 L -7 14 A 14 14 0 0 1 -7 -14 Z" fill="#FF4600" />
+    <path d="M 7 -36 A 38 38 0 0 1 7 36 L 7 14 A 14 14 0 0 0 7 -14 Z" fill="#FF4600" />
+  </g>
+</svg>
