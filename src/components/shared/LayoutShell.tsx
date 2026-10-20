@@ -42,9 +42,11 @@ export function LayoutShell({ children }: LayoutShellProps) {
   // If user is inside an individual game (/play/chess, /play/uno, /play/connect4), do NOT inject the shared arcade header/footer.
   // Each game possesses its own authentic navigation, header, status bar, and controls from its original repo.
   const isGameRoute =
-    pathname.startsWith('/play/chess') ||
-    pathname.startsWith('/play/uno') ||
-    pathname.startsWith('/play/connect4');
+    Boolean(
+      pathname?.startsWith('/play/chess') ||
+      pathname?.startsWith('/play/uno') ||
+      pathname?.startsWith('/play/connect4')
+    );
 
   if (isGameRoute) {
     return (

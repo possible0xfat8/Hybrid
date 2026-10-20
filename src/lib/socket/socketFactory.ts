@@ -3,8 +3,8 @@ import { io, Socket } from 'socket.io-client';
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_SOCKET_URL ||
   (typeof window !== 'undefined'
-    ? `${window.location.protocol}//${window.location.hostname}:3001`
-    : 'http://localhost:3001');
+    ? window.location.origin
+    : 'http://localhost:3000');
 
 // Isolated socket singletons
 let chessSocket: Socket | null = null;

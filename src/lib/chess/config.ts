@@ -9,7 +9,7 @@
  */
 export const DEFAULT_BACKEND_URL =
   (typeof process !== 'undefined' && (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.VITE_BACKEND_URL)) ||
-  "http://localhost:3001";
+  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
 
 function normalize(url: string): string {
   return url.trim().replace(/\/+$/, "");

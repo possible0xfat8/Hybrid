@@ -1,0 +1,7 @@
+{
+  "name": "Hemi Arcade",
+  "description": "Jump into real-time Web3 gaming on Hemi Network. Battle for on-chain ELO in Hemi Chess or sweep the chip pots in Hemi Crazy 8.",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

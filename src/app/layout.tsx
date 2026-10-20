@@ -7,6 +7,17 @@ export const metadata: Metadata = {
   title: 'Hemi Arcade | Unified Web3 Gaming Dashboard',
   description: 'Jump into real-time Web3 gaming on Hemi Network. Battle for on-chain ELO in Hemi Chess or sweep the chip pots in Hemi Crazy 8.',
   keywords: ['Hemi', 'Hemi Network', 'Web3 Gaming', 'Hemi Chess', 'Hemi Crazy 8', 'Arcade', 'Blockchain Gaming'],
+  openGraph: {
+    title: 'Hemi Arcade | Unified Web3 Gaming Dashboard',
+    description: 'Jump into real-time Web3 gaming on Hemi Network. Battle for on-chain ELO in Hemi Chess or sweep the chip pots in Hemi Crazy 8.',
+    type: 'website',
+    siteName: 'Hemi Arcade',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Hemi Arcade | Unified Web3 Gaming Dashboard',
+    description: 'Jump into real-time Web3 gaming on Hemi Network. Battle for on-chain ELO in Hemi Chess or sweep the chip pots in Hemi Crazy 8.',
+  },
 };
 
 export default function RootLayout({
