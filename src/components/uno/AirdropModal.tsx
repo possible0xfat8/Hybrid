@@ -12,13 +12,16 @@ import {
   AlertCircle,
   Zap,
 } from 'lucide-react';
-import { claimWelcomeAirdrop, CRAZY8_TOKEN_ADDRESS, CRAZY8_AIRDROP_AMOUNT } from '@/lib/uno/token';
+import { claimWelcomeAirdrop, CRAZY8_TOKEN_ADDRESS, CRAZY8_AIRDROP_AMOUNT, formatTokenAmount } from '@/lib/uno/token';
+import { formatAddress } from '@/lib/uno/wallet';
 
 interface AirdropModalProps {
   isOpen: boolean;
   onClose: () => void;
   walletAddress: string | null;
   onClaimSuccess: (newBalance: string) => void;
+  hasAlreadyClaimed?: boolean;
+  tokenBalance?: string;
 }
 
 export const AirdropModal: React.FC<AirdropModalProps> = ({
@@ -26,16 +29,20 @@ export const AirdropModal: React.FC<AirdropModalProps> = ({
   onClose,
   walletAddress,
   onClaimSuccess,
+  hasAlreadyClaimed = false,
+  tokenBalance = '10000',
 }) => {
   const [claiming, setClaiming] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [claimed, setClaimed] = useState(false);
+  const [justClaimed, setJustClaimed] = useState(false);
 
   if (!isOpen) return null;
 
+  const isClaimedState = justClaimed || hasAlreadyClaimed;
+
   const handleClaim = async () => {
-    if (!walletAddress) return;
+    if (!walletAddress || hasAlreadyClaimed) return;
     setClaiming(true);
     setError(null);
 
@@ -44,7 +51,7 @@ export const AirdropModal: React.FC<AirdropModalProps> = ({
 
     if (result.success && result.balance) {
       setTxHash(result.txHash || null);
-      setClaimed(true);
+      setJustClaimed(true);
       onClaimSuccess(result.balance);
 
       confetti({
@@ -70,7 +77,7 @@ export const AirdropModal: React.FC<AirdropModalProps> = ({
           </button>
         </div>
 
-        {!claimed ? (
+        {!isClaimedState ? (
           <>
             {/* Header Icon */}
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mx-auto mb-4 text-[#FF4600]">
@@ -136,13 +143,37 @@ export const AirdropModal: React.FC<AirdropModalProps> = ({
               <CheckCircle2 className="w-7 h-7 sm:w-8 sm:h-8" />
             </div>
 
+            <div className="inline-block px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[10px] sm:text-xs font-semibold uppercase tracking-wider mb-2">
+              {justClaimed ? 'Airdrop Received' : 'Already Claimed'}
+            </div>
+
             <h2 className="text-xl sm:text-2xl font-bold text-white mb-2 tracking-tight">
-              Airdrop Received!
+              {justClaimed ? '10,000 $CRAZY8 Received!' : '10,000 $CRAZY8 Claimed'}
             </h2>
 
             <p className="text-xs sm:text-sm text-slate-400 mb-6 leading-relaxed">
-              10,000 $CRAZY8 tokens have landed in your wallet. You are ready to enter game tables, place bets, and compete for the 95% winner escrow pot!
+              {justClaimed
+                ? '10,000 $CRAZY8 tokens have landed in your wallet. You are ready to enter game tables, place bets, and compete for the 95% winner escrow pot!'
+                : `This wallet (${formatAddress(walletAddress)}) has already claimed its one-time 10,000 $CRAZY8 welcome grant.`}
             </p>
+
+            {/* Airdrop Status Details Box */}
+            <div className="p-3.5 sm:p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] mb-5 text-left space-y-2 font-mono text-xs">
+              <div className="flex items-center justify-between text-slate-400">
+                <span>Wallet:</span>
+                <span className="font-bold text-white">{formatAddress(walletAddress)}</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-400">
+                <span>Chip Balance:</span>
+                <span className="font-bold text-amber-400">{formatTokenAmount(tokenBalance || '10000')} $CRAZY8</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-400">
+                <span>Claim Status:</span>
+                <span className="font-medium text-emerald-400 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Claimed (1 per wallet)
+                </span>
+              </div>
+            </div>
 
             {txHash && (
               <a
@@ -160,7 +191,7 @@ export const AirdropModal: React.FC<AirdropModalProps> = ({
               onClick={onClose}
               className="w-full py-3 rounded-xl bg-[#FF4600] hover:bg-[#FF5500] text-white font-bold text-xs sm:text-sm uppercase tracking-wider transition-all shadow-md active:scale-98 cursor-pointer"
             >
-              Let's Play Crazy 8!
+              {justClaimed ? "Let's Play Crazy 8!" : "Back to Arcade"}
             </button>
           </>
         )}

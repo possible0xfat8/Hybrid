@@ -14,7 +14,7 @@ try {
   const currentDir = process.cwd();
   console.log(`[LINK-ROOT] Current working directory: ${currentDir}`);
 
-  if (currentDir !== '/') {
+  if (process.platform !== 'win32' && currentDir !== '/') {
     const systemDirs = new Set([
       'app', 'bin', 'boot', 'dev', 'etc', 'home', 'lib', 'lib64',
       'media', 'mnt', 'opt', 'proc', 'root', 'run', 'sbin', 'srv',
@@ -68,7 +68,8 @@ import connect4Routes from './routes/connect4Routes';
 import { createArcadeRoutes } from './routes/arcadeRoutes';
 
 const PORT = parseInt(process.env.PORT || process.env.SERVER_PORT || '3000', 10);
-const dev = process.env.NODE_ENV !== 'production';
+const isProd = process.env.NODE_ENV === 'production' || process.env.npm_lifecycle_event === 'start';
+const dev = !isProd;
 
 // Initialize Next.js App
 const nextApp = next({ dev, hostname: '0.0.0.0', port: PORT });

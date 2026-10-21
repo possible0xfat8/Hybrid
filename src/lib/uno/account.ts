@@ -15,10 +15,15 @@ export interface AccountProfile {
   stats?: {
     matchesPlayed: number;
     wins: number;
+    losses?: number;
     cardsPlayed: number;
     hemiWon?: string;
     rankTitle?: string;
     winStreak?: number;
+    totalWinnings?: string;
+    totalLosses?: string;
+    chipsEarned?: number;
+    chipsLost?: number;
   };
 }
 

@@ -554,3 +554,30 @@ export async function switchOrAddHemiNetwork(
     return false;
   }
 }
+
+/**
+ * Creates or retrieves a persistent arcade guest wallet session.
+ * Enables instant play on browsers without Web3 extensions (and on preview environments).
+ */
+export function createGuestArcadeWallet(): { address: string; chainId: number; balance: string } {
+  let guestAddr = '';
+  try {
+    guestAddr = localStorage.getItem('hemi_uno_guest_wallet') || '';
+  } catch {}
+
+  if (!guestAddr || !guestAddr.startsWith('0x') || guestAddr.length !== 42) {
+    const randomHex = Array.from({ length: 40 }, () =>
+      Math.floor(Math.random() * 16).toString(16)
+    ).join('');
+    guestAddr = `0x${randomHex}`;
+    try {
+      localStorage.setItem('hemi_uno_guest_wallet', guestAddr);
+    } catch {}
+  }
+
+  return {
+    address: guestAddr,
+    chainId: HEMI_SEPOLIA_CONFIG.chainIdDecimal,
+    balance: '1.0',
+  };
+}

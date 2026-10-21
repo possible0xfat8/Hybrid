@@ -1,8 +1,12 @@
 export interface UserStats {
   matchesPlayed: number;
   wins: number;
+  losses?: number;
   cardsPlayed: number;
   totalWinnings: string;
+  totalLosses?: string;
+  chipsEarned?: number;
+  chipsLost?: number;
 }
 
 export interface UserNotification {
@@ -36,6 +40,7 @@ export interface UserProfileRecord {
   friendRequestsReceived: string[];
   recentOpponents: { id: string; name: string; avatar: string; playedAt: number }[];
   notifications?: UserNotification[];
+  hasClaimedAirdrop?: boolean;
 }
 
 export interface EnrichedFriend {
@@ -79,10 +84,14 @@ export class ServerDatabase {
 
   private seedDefaultUsers() {
     const defaultUsers = [
-      { id: 'bot_host_clsc', name: 'LumiBear', avatar: '🐻', tag: 'LumiBear#0001' },
-      { id: 'bot_host_stck', name: 'NeoDash', avatar: '🤖', tag: 'NeoDash#0002' },
-      { id: 'bot_host_team', name: 'Zyro', avatar: '🦊', tag: 'Zyro#0003' },
-      { id: 'bot_host_fast', name: 'Tobz', avatar: '🐱', tag: 'Tobz#0004' },
+      { id: 'whale_1', name: 'ApexWhale', avatar: '💎', tag: 'ApexWhale#0001', chips: 185000, wins: 112, losses: 18, earned: '165000', lost: '15000', bio: 'Hemi High Roller #1' },
+      { id: 'whale_2', name: 'ApeKing', avatar: '🦁', tag: 'ApeKing#0002', chips: 142500, wins: 88, losses: 21, earned: '128000', lost: '22000', bio: 'Crazy 8 Pot Collector' },
+      { id: 'whale_3', name: 'SatoshiShark', avatar: '🦈', tag: 'SatoshiShark#0003', chips: 98000, wins: 64, losses: 16, earned: '85000', lost: '14000', bio: 'High Stakes Player' },
+      { id: 'bot_host_stck', name: 'NeoDash', avatar: '🤖', tag: 'NeoDash#0004', chips: 67500, wins: 45, losses: 15, earned: '58000', lost: '12000', bio: 'Bot Buster & Card Shark' },
+      { id: 'bot_host_team', name: 'FoxCardist', avatar: '🦊', tag: 'FoxCardist#0005', chips: 51200, wins: 39, losses: 19, earned: '44000', lost: '18000', bio: 'Fast Draw Specialist' },
+      { id: 'bot_host_clsc', name: 'LumiBear', avatar: '🐻', tag: 'LumiBear#0006', chips: 38000, wins: 28, losses: 14, earned: '32000', lost: '11000', bio: 'Hemi Arcade Resident Challenger' },
+      { id: 'bot_host_fast', name: 'Tobz', avatar: '🐱', tag: 'Tobz#0007', chips: 26400, wins: 21, losses: 11, earned: '24000', lost: '8000', bio: 'Speed Player' },
+      { id: 'whale_4', name: 'DragonAce', avatar: '🐉', tag: 'DragonAce#0008', chips: 19500, wins: 17, losses: 9, earned: '18000', lost: '7500', bio: 'Wild 8 Enthusiast' },
     ];
 
     for (const u of defaultUsers) {
@@ -92,13 +101,20 @@ export class ServerDatabase {
           tag: u.tag,
           name: u.name,
           avatar: u.avatar,
-          bio: 'Hemi Arcade Resident Challenger',
+          bio: u.bio,
           status: 'online',
           lastSeen: Date.now(),
           createdAt: Date.now(),
           updatedAt: Date.now(),
-          stats: { matchesPlayed: 25, wins: 12, cardsPlayed: 180, totalWinnings: '1200' },
-          tokenBalance: 10000,
+          stats: {
+            matchesPlayed: u.wins + u.losses,
+            wins: u.wins,
+            losses: u.losses,
+            cardsPlayed: (u.wins + u.losses) * 7,
+            totalWinnings: u.earned,
+            totalLosses: u.lost,
+          },
+          tokenBalance: u.chips,
           friends: [],
           friendRequestsSent: [],
           friendRequestsReceived: [],
@@ -490,8 +506,13 @@ export class ServerDatabase {
 
       if (pid === winnerId) {
         user.stats.wins += 1;
-        const currentWon = parseFloat(user.stats.totalWinnings) || 0;
-        user.stats.totalWinnings = (currentWon + potNum).toFixed(3);
+        const currentWon = parseFloat(user.stats.totalWinnings || '0') || 0;
+        user.stats.totalWinnings = (currentWon + potNum).toFixed(0);
+      } else {
+        user.stats.losses = (user.stats.losses || 0) + 1;
+        const currentLost = parseFloat(user.stats.totalLosses || '0') || 0;
+        const approxLoss = playerIds.length > 0 ? Math.round(potNum / playerIds.length) : 100;
+        user.stats.totalLosses = (currentLost + approxLoss).toFixed(0);
       }
 
       const otherPlayers = playerIds
@@ -525,9 +546,17 @@ export class ServerDatabase {
       .slice(0, 6);
   }
 
-  public getLeaderboard(limit = 10): UserProfileRecord[] {
+  public getLeaderboard(limit = 10, sortBy: 'chips' | 'wins' = 'chips'): UserProfileRecord[] {
     return Object.values(this.data.users)
-      .sort((a, b) => (b.stats?.wins || 0) - (a.stats?.wins || 0) || (b.stats?.matchesPlayed || 0) - (a.stats?.matchesPlayed || 0))
+      .sort((a, b) => {
+        if (sortBy === 'wins') {
+          return (b.stats?.wins || 0) - (a.stats?.wins || 0) || (b.tokenBalance || 0) - (a.tokenBalance || 0);
+        }
+        // Default sort by Chip Wealth (Richest players topping the ranks)
+        const aChips = typeof a.tokenBalance === 'number' ? a.tokenBalance : 10000;
+        const bChips = typeof b.tokenBalance === 'number' ? b.tokenBalance : 10000;
+        return bChips - aChips || (b.stats?.wins || 0) - (a.stats?.wins || 0);
+      })
       .slice(0, limit);
   }
 
@@ -597,6 +626,7 @@ export class ServerDatabase {
       friendRequestsReceived: user.friendRequestsReceived || existing?.friendRequestsReceived || [],
       recentOpponents: user.recentOpponents || existing?.recentOpponents || [],
       notifications: user.notifications || existing?.notifications || [],
+      hasClaimedAirdrop: user.hasClaimedAirdrop !== undefined ? user.hasClaimedAirdrop : (existing?.hasClaimedAirdrop || false),
     };
 
     this.data.users[user.id] = updated;

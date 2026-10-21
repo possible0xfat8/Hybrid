@@ -38,6 +38,9 @@ import {
   X,
 } from 'lucide-react';
 
+import { Crazy8ProfileDashboard } from './Crazy8ProfileDashboard';
+import { Crazy8RichLeaderboard } from './Crazy8RichLeaderboard';
+
 export interface LobbyViewProps {
   gameState: GameState | null;
   myPlayerId: string;
@@ -71,6 +74,10 @@ export interface LobbyViewProps {
   liveStats?: { openTables: number; playersOnline: number; gamesPlayed: number };
   isMusicOn?: boolean;
   onToggleMusic?: () => void;
+  tokenBalance?: string;
+  onOpenAirdrop?: () => void;
+  isAirdropEligible?: boolean;
+  hasClaimedAirdrop?: boolean;
 }
 
 const AVATARS = ['🦊', '🦁', '🐸', '🤖', '🐻', '💎', '🐉', '🐱'];
@@ -108,6 +115,10 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   liveStats = { openTables: 0, playersOnline: 0, gamesPlayed: 0 },
   isMusicOn = true,
   onToggleMusic,
+  tokenBalance = '0',
+  onOpenAirdrop,
+  isAirdropEligible = false,
+  hasClaimedAirdrop = false,
 }) => {
   const [playerName, setPlayerName] = useState(
     account?.name || (wallet.address ? formatAddress(wallet.address) : '')
@@ -206,10 +217,6 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
 
   const handleJoinByCodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!wallet.address) {
-      onConnectWallet();
-      return;
-    }
     const cleanCode = joinCodeInput.trim().toUpperCase();
     if (cleanCode.length >= 4) {
       let currentName = playerName;
@@ -217,28 +224,20 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         currentName = nameInput.trim();
         handleSaveName(currentName);
       }
-      onJoinRoom(cleanCode, currentName || formatAddress(wallet.address), selectedAvatar, wallet.address);
+      onJoinRoom(cleanCode, currentName || (wallet.address ? formatAddress(wallet.address) : 'Player'), selectedAvatar, wallet.address || undefined);
     }
   };
 
   const handleJoinTable = (code: string) => {
-    if (!wallet.address) {
-      onConnectWallet();
-      return;
-    }
     let currentName = playerName;
     if ((isEditingName || isEditingNameMobile) && nameInput.trim()) {
       currentName = nameInput.trim();
       handleSaveName(currentName);
     }
-    onJoinRoom(code, currentName || formatAddress(wallet.address), selectedAvatar, wallet.address);
+    onJoinRoom(code, currentName || (wallet.address ? formatAddress(wallet.address) : 'Player'), selectedAvatar, wallet.address || undefined);
   };
 
   const handleCreateTableClick = () => {
-    if (!wallet.address) {
-      onConnectWallet();
-      return;
-    }
     if ((isEditingName || isEditingNameMobile) && nameInput.trim()) {
       handleSaveName(nameInput.trim());
     }
@@ -785,6 +784,25 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   // =========================================================================
   return (
     <div className="w-full max-w-7xl mx-auto py-2 sm:py-4 pb-16 lg:pb-4 px-2 sm:px-4 lg:px-6">
+      {/* ========================================================= */}
+      {/* TOP: EASY TO SPOT PROFILE DASHBOARD                      */}
+      {/* ========================================================= */}
+      <div className="mb-3 sm:mb-4">
+        <Crazy8ProfileDashboard
+          wallet={wallet}
+          account={account}
+          tokenBalance={tokenBalance}
+          onConnectWallet={onConnectWallet}
+          onOpenProfile={onOpenProfile}
+          onUpdateName={(newName) => {
+            if (onUpdateProfile) onUpdateProfile(newName, selectedAvatar);
+          }}
+          onClaimAirdrop={onOpenAirdrop}
+          isAirdropEligible={isAirdropEligible}
+          hasClaimedAirdrop={hasClaimedAirdrop}
+        />
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 items-start">
         {/* ========================================================= */}
         {/* LEFT COLUMN: Navigation Sidebar (Desktop Only)            */}
@@ -914,200 +932,47 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         {/* ========================================================= */}
         {/* CENTER COLUMN: Hero Banner, Stats, and Open Tables       */}
         {/* ========================================================= */}
-        <div className="lg:col-span-7 xl:col-span-7 flex flex-col gap-3 sm:gap-4">
-          {/* Mobile Profile & Quick Change Name Banner (Mobile Only) */}
-          {wallet.address && account && (
-            <div className="lg:hidden p-3 sm:p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/[0.02] rounded-full blur-2xl pointer-events-none" />
+        <div className="lg:col-span-6 xl:col-span-6 flex flex-col gap-3 sm:gap-4">
+          {/* Hero Action Banner */}
+          <div className="rounded-2xl sm:rounded-3xl bg-gradient-to-br from-white/[0.04] to-white/[0.01] border border-white/[0.08] p-4 sm:p-6 relative overflow-hidden shadow-xl">
+            <div className="absolute -right-16 -top-16 w-56 h-56 rounded-full bg-[#FF4600]/15 blur-3xl pointer-events-none" />
 
-              {!isEditingNameMobile ? (
-                <div className="flex items-center justify-between gap-2.5 relative z-10">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div
-                      onClick={onOpenProfile}
-                      className="w-11 h-11 rounded-full bg-white/[0.06] border border-white/[0.12] flex items-center justify-center text-2xl shrink-0 cursor-pointer active:scale-95 transition-transform overflow-hidden"
-                      title="Edit Profile & Avatar"
-                    >
-                      <UserAvatar avatar={selectedAvatar} name={playerName} className="w-full h-full text-2xl rounded-full" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-sm font-black text-white truncate max-w-[130px] xs:max-w-[170px]">
-                          {playerName}
-                        </span>
-                        {isDefaultName && (
-                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 font-bold shrink-0">
-                            Default
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1.5 mt-0.5">
-                        <span>Lvl {playerLevel}</span>
-                        <span>•</span>
-                        <span className="text-emerald-400 font-medium flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          Connected
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsEditingNameMobile(true);
-                        setNameInput(playerName);
-                        setNameError(null);
-                      }}
-                      className="px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] text-slate-300 hover:text-white text-xs font-medium transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                      <span>Change Name</span>
-                    </button>
-                  </div>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="text-[10px] sm:text-[11px] font-mono font-black tracking-widest text-[#FF4600] uppercase">
+                    HEMI CRAZY 8
+                  </span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[10px] font-mono text-emerald-400 font-bold">LIVE ON-CHAIN</span>
                 </div>
-              ) : (
-                <div className="space-y-2 relative z-10 animate-in fade-in duration-150">
-                  <div className="flex items-center justify-between text-[10px] font-mono font-bold">
-                    <span className="text-[#FF4600] flex items-center gap-1">
-                      <Pencil className="w-3 h-3" />
-                      CHANGE PLAYER NAME
-                    </span>
-                    <span className="text-slate-500">{nameInput.length}/16</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="text"
-                      autoFocus
-                      value={nameInput}
-                      onChange={(e) => {
-                        setNameInput(e.target.value);
-                        setNameError(null);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleSaveName();
-                        } else if (e.key === 'Escape') {
-                          setIsEditingNameMobile(false);
-                          setNameInput(playerName);
-                          setNameError(null);
-                        }
-                      }}
-                      maxLength={16}
-                      placeholder="Enter new nickname..."
-                      className="flex-1 bg-slate-950 border border-[#FF4600] rounded-xl px-3 py-2 text-xs font-bold text-white outline-none ring-2 ring-[#FF4600]/25 placeholder-slate-600"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleSaveName()}
-                      className="px-3 py-2 rounded-xl bg-gradient-to-r from-[#FF5500] to-[#FF3700] text-white font-bold text-xs transition-all shadow-md active:scale-95 flex items-center gap-1 cursor-pointer shrink-0"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Save</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsEditingNameMobile(false);
-                        setNameInput(playerName);
-                        setNameError(null);
-                      }}
-                      className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer shrink-0"
-                      title="Cancel"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  {nameError ? (
-                    <div className="text-[10px] text-rose-400 font-medium">
-                      {nameError}
-                    </div>
-                  ) : isDefaultName ? (
-                    <div className="text-[10px] text-amber-400/90 font-medium">
-                      💡 Choose a custom nickname before joining matches!
-                    </div>
-                  ) : null}
-                </div>
-              )}
 
-              {nameSavedSuccess && (
-                <div className="mt-2 text-center text-xs font-bold text-emerald-400 flex items-center justify-center gap-1 animate-in fade-in">
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Nickname updated successfully!</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Hero Banner */}
-          <div className="rounded-2xl sm:rounded-3xl bg-white/[0.02] border border-white/[0.06] p-4 sm:p-8 relative overflow-hidden">
-            <div className="absolute -right-16 -top-16 w-64 h-64 rounded-full bg-[#FF4600]/[0.06] blur-3xl pointer-events-none" />
-
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4 sm:gap-6 relative z-10">
-              <div className="flex-1 min-w-0 text-left">
-                <span className="inline-block text-[10px] sm:text-[11px] font-bold font-mono tracking-widest text-[#FF4600]/80 uppercase mb-1 sm:mb-2">
-                  HEMI CRAZY 8
-                </span>
-
-                <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight leading-tight mb-1.5 sm:mb-2">
-                  Ready to <span className="text-[#FF4600]">play?</span>
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight leading-tight mb-2">
+                  Ready to <span className="text-[#FF4600]">Sweep the Pot?</span>
                 </h1>
 
-                <p className="text-xs sm:text-sm text-slate-300 mb-4 sm:mb-6 max-w-sm">
-                  Jump into the next open table — no room code needed.
-                </p>
-
-                <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <div className="flex items-center gap-2.5 mt-3">
                   <button
+                    type="button"
                     onClick={handleQuickJoinClick}
-                    className="px-6 sm:px-8 py-3 sm:py-3.5 rounded-xl bg-[#FF4600] hover:bg-[#FF5500] text-white font-bold text-xs sm:text-sm tracking-wide uppercase transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+                    className="px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-[#FF5500] to-[#FF3700] hover:brightness-110 active:scale-95 text-white font-black text-xs sm:text-sm tracking-wider uppercase transition-all flex items-center gap-2 shadow-lg shadow-[#FF4600]/30 cursor-pointer"
                   >
-                    <span>&lt; QUICK PLAY &gt;</span>
+                    <Play className="w-4 h-4 fill-white" />
+                    <span>QUICK PLAY</span>
                   </button>
 
-                  {/* Playing As info badge with quick Change button */}
-                  {wallet.address && account && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.06] text-xs">
-                      <span className="text-slate-400 font-mono text-[10px] sm:text-[11px]">As:</span>
-                      <span className="font-bold flex items-center gap-1.5 text-white">
-                        <UserAvatar avatar={selectedAvatar} name={playerName} className="w-4 h-4 text-xs rounded-full shrink-0" />
-                        <span className="text-white max-w-[110px] truncate">{playerName}</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsEditingName(true);
-                          setIsEditingNameMobile(true);
-                          setNameInput(playerName);
-                          setNameError(null);
-                        }}
-                        className="text-[10px] sm:text-[11px] font-medium text-slate-400 hover:text-white flex items-center gap-1 px-2 py-0.5 rounded bg-white/[0.06] hover:bg-white/[0.1] transition-colors cursor-pointer"
-                        title="Change Name"
-                      >
-                        <Pencil className="w-2.5 h-2.5" />
-                        <span>Change</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Badges row */}
-                <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-[11px] sm:text-xs font-semibold text-slate-400">
-                  <span className="flex items-center gap-1.5">
-                    <span className="text-rose-400">🎯</span> Find a game
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="text-amber-400">⚡</span> Join instantly
-                  </span>
-                  <span className="flex items-center gap-1.5 hidden sm:flex">
-                    <span className="text-blue-400">🏆</span> Play with others
-                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCreateTableClick}
+                    className="px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] active:scale-95 border border-white/[0.1] text-white font-bold text-xs sm:text-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Create Table</span>
+                  </button>
                 </div>
               </div>
 
-              {/* Hero Cards — hidden on mobile */}
+              {/* Hero Cards Visual */}
               <div className="shrink-0 hidden md:block">
                 <HemiHeroCards />
               </div>
@@ -1281,266 +1146,40 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         </div>
 
         {/* ========================================================= */}
-        {/* RIGHT COLUMN: Profile Card, Create, Join Code, Social     */}
+        {/* RIGHT COLUMN: Rich Players Leaderboard & Friends          */}
         {/* ========================================================= */}
-        <div className="lg:col-span-3 xl:col-span-3 flex flex-col gap-3 sm:gap-4">
-          {/* User Profile Card / Connect Wallet Card */}
-          {!wallet.address || !account ? (
-            <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06] relative overflow-hidden text-center">
-              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center mx-auto mb-3 text-slate-400">
-                <Shield className="w-7 h-7 sm:w-8 sm:h-8" />
-              </div>
-              <h3 className="text-sm sm:text-base font-black text-white mb-1">Web3 Profile</h3>
-              <p className="text-[11px] sm:text-xs text-slate-400 mb-4 leading-relaxed">
-                Connect your wallet to unlock your player profile, custom avatar, match history, and join game tables.
-              </p>
-              <button
-                type="button"
-                onClick={onConnectWallet}
-                className="w-full py-2.5 sm:py-3 rounded-xl bg-[#FF4600] hover:bg-[#FF5500] text-white font-bold text-xs sm:text-sm tracking-wide transition-all active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                <span>Connect Wallet</span>
-              </button>
-            </div>
-          ) : (
-            <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06] relative overflow-hidden">
-              <div className="flex flex-col items-center text-center">
-                {/* Avatar */}
-                <div className="relative mb-2 sm:mb-3">
-                  <div
-                    onClick={onOpenProfile}
-                    className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white/[0.06] border border-white/[0.1] flex items-center justify-center text-3xl sm:text-4xl overflow-hidden cursor-pointer group"
-                    title="Customize Profile & Picture"
-                  >
-                    <UserAvatar avatar={selectedAvatar} name={playerName} className="w-full h-full text-3xl sm:text-4xl rounded-full" />
-                  </div>
-                  <div className="absolute -bottom-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/10 text-white flex items-center justify-center text-[10px] sm:text-xs font-bold border border-white/20">
-                    👑
-                  </div>
-                </div>
-
-                {!isEditingName ? (
-                  <div className="flex flex-col items-center w-full">
-                    <div className="flex items-center justify-center gap-1.5 group max-w-full">
-                      <h3
-                        onClick={() => {
-                          setIsEditingName(true);
-                          setNameInput(playerName);
-                          setNameError(null);
-                        }}
-                        className="text-base sm:text-lg font-black text-white hover:text-[#FF4600] transition-colors cursor-pointer truncate max-w-[180px] sm:max-w-[210px]"
-                        title="Click to change your name"
-                      >
-                        {playerName}
-                      </h3>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsEditingName(true);
-                          setNameInput(playerName);
-                          setNameError(null);
-                        }}
-                        className="p-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-slate-400 hover:text-white transition-all cursor-pointer shrink-0"
-                        title="Change Name"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsEditingName(true);
-                        setNameInput(playerName);
-                        setNameError(null);
-                      }}
-                      className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-white transition-colors bg-white/[0.06] hover:bg-white/[0.1] px-2.5 py-0.5 rounded-full mt-1 cursor-pointer"
-                    >
-                      <Pencil className="w-2.5 h-2.5" />
-                      <span>Change Name</span>
-                    </button>
-
-                    {isDefaultName && (
-                      <div className="mt-2 w-full px-2.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-300 text-[10px] font-medium flex items-center gap-1.5 text-left">
-                        <span className="text-sm shrink-0">💡</span>
-                        <span className="leading-tight">
-                          Using default name. Click <strong>Change Name</strong> to personalize before playing!
-                        </span>
-                      </div>
-                    )}
-
-                    {nameSavedSuccess && (
-                      <div className="mt-1.5 text-emerald-400 text-xs font-bold flex items-center justify-center gap-1 animate-in fade-in">
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Name updated!</span>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="w-full mt-1 mb-2 p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] text-left animate-in fade-in duration-150">
-                    <div className="flex items-center justify-between text-[10px] font-mono font-bold text-slate-400 mb-1">
-                      <span className="text-[#FF4600] flex items-center gap-1">
-                        <Pencil className="w-3 h-3" />
-                        CHANGE NAME
-                      </span>
-                      <span>{nameInput.length}/16</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="text"
-                        autoFocus
-                        value={nameInput}
-                        onChange={(e) => {
-                          setNameInput(e.target.value);
-                          setNameError(null);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleSaveName();
-                          } else if (e.key === 'Escape') {
-                            setIsEditingName(false);
-                            setNameInput(playerName);
-                            setNameError(null);
-                          }
-                        }}
-                        maxLength={16}
-                        placeholder="Your nickname..."
-                        className="flex-1 bg-[#08090C] border border-white/[0.08] focus:border-[#FF4600]/60 rounded-xl px-2.5 py-1.5 text-xs font-bold text-white outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleSaveName()}
-                        className="p-2 rounded-xl bg-[#FF4600] hover:bg-[#FF5500] text-white font-bold transition-all cursor-pointer"
-                        title="Save Name"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsEditingName(false);
-                          setNameInput(playerName);
-                          setNameError(null);
-                        }}
-                        className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-400 hover:text-white transition-all cursor-pointer"
-                        title="Cancel"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                    {nameError && (
-                      <div className="text-[10px] text-rose-400 mt-1 font-medium">
-                        {nameError}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="text-[10px] sm:text-xs font-mono text-slate-400 mt-0.5 mb-1.5 sm:mb-2">
-                  Level {playerLevel} • {playerXP} XP
-                </div>
-
-                <div className="flex items-center gap-1.5 text-[10px] sm:text-xs text-emerald-400 font-medium mb-2 sm:mb-3">
-                  <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>Wallet Connected</span>
-                </div>
-
-                <button
-                  onClick={handleCopyWalletAddress}
-                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-lg bg-white/[0.04] border border-white/[0.06] hover:border-white/[0.1] text-slate-300 text-[10px] sm:text-xs font-mono transition-all mb-3 sm:mb-4 cursor-pointer"
-                  title="Copy address"
-                >
-                  <span>{formatAddress(wallet.address)}</span>
-                  {copiedAddress ? (
-                    <Check className="w-3 h-3 text-emerald-400" />
-                  ) : (
-                    <Copy className="w-3 h-3 text-slate-400" />
-                  )}
-                </button>
-
-                {/* Avatar Selector Row */}
-                <div className="w-full pt-2.5 sm:pt-3 border-t border-white/[0.06]">
-                  <div className="text-[9px] sm:text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1.5 sm:mb-2 text-left">
-                    Choose Avatar
-                  </div>
-                  <div className="flex items-center justify-between gap-1">
-                    {AVATARS.slice(0, 5).map((emoji) => {
-                      const active = selectedAvatar === emoji;
-                      return (
-                        <button
-                          key={emoji}
-                          type="button"
-                          onClick={() => handleAvatarSelect(emoji)}
-                          className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center text-base sm:text-lg transition-all cursor-pointer ${
-                            active
-                              ? 'bg-[#FF4600]/15 border-2 border-[#FF4600] scale-105'
-                              : 'bg-white/[0.04] border border-white/[0.06] hover:border-white/[0.12]'
-                          }`}
-                        >
-                          {emoji}
-                        </button>
-                      );
-                    })}
-                    <button
-                      type="button"
-                      onClick={onOpenProfile}
-                      className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-white/[0.04] border border-white/[0.06] hover:border-white/[0.1] flex items-center justify-center text-slate-400 hover:text-white transition-all cursor-pointer"
-                      title="More Avatars & Profile Settings"
-                    >
-                      <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Create Table Card */}
-          <div
-            onClick={handleCreateTableClick}
-            className="p-4 sm:p-5 rounded-2xl bg-[#FF4600] text-white transition-all hover:bg-[#FF5500] active:scale-98 cursor-pointer flex items-center justify-between"
-          >
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-black/20 flex items-center justify-center text-white shrink-0 mt-0.5">
-                <Users className="w-4 h-4 sm:w-5 sm:h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm sm:text-base font-black">Create Table</h3>
-                <p className="text-[10px] sm:text-xs text-white/80 leading-snug">
-                  Set your own rules, invite friends, or play for a custom buy-in.
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-white/80 shrink-0 ml-2" />
-          </div>
+        <div className="lg:col-span-4 xl:col-span-4 flex flex-col gap-3 sm:gap-4">
+          {/* HIGH ROLLERS / RICH PLAYERS LEADERBOARD */}
+          <Crazy8RichLeaderboard
+            currentUserId={account?.id}
+            currentUserAddress={wallet.address || undefined}
+            currentUserChips={tokenBalance}
+            currentUserWins={account?.stats?.wins || 0}
+            onQuickPlay={handleQuickJoinClick}
+          />
 
           {/* Join by Code Card */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
-            <div className="flex items-center gap-2 sm:gap-2.5 mb-2">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/[0.06] border border-white/[0.06] flex items-center justify-center text-slate-400">
-                <Code2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-7 h-7 rounded-lg bg-white/[0.06] flex items-center justify-center text-slate-400">
+                <Code2 className="w-3.5 h-3.5" />
               </div>
-              <div>
-                <h3 className="text-xs sm:text-sm font-black text-white">Join by Code</h3>
-                <p className="text-[10px] sm:text-[11px] text-slate-400">Have a room code? Enter it here.</p>
-              </div>
+              <h3 className="text-xs sm:text-sm font-black text-white">Join Table by Code</h3>
             </div>
 
-            <form onSubmit={handleJoinByCodeSubmit} className="mt-2 sm:mt-3 flex items-center gap-2">
+            <form onSubmit={handleJoinByCodeSubmit} className="flex items-center gap-2">
               <input
                 type="text"
                 value={joinCodeInput}
                 onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
-                placeholder="Enter room code..."
+                placeholder="4-digit room code..."
                 maxLength={6}
-                className="flex-1 bg-[#08090C] border border-white/[0.08] rounded-lg px-3 py-2 text-xs font-mono font-bold text-white placeholder-slate-600 uppercase focus:border-[#FF4600]/60 outline-none transition-colors"
+                className="flex-1 bg-[#08090C] border border-white/[0.08] rounded-xl px-3 py-2 text-xs font-mono font-bold text-white placeholder-slate-600 uppercase focus:border-[#FF4600]/60 outline-none transition-colors"
               />
               <button
                 type="submit"
                 disabled={joinCodeInput.trim().length < 4}
-                className="px-3 sm:px-4 py-2 rounded-lg bg-[#FF4600] hover:bg-[#FF5500] disabled:opacity-40 text-white font-bold text-xs transition-all shrink-0 flex items-center gap-1 cursor-pointer"
+                className="px-3.5 py-2 rounded-xl bg-[#FF4600] hover:bg-[#FF5500] disabled:opacity-40 text-white font-bold text-xs transition-all shrink-0 flex items-center gap-1 cursor-pointer"
               >
                 <span>Join</span>
                 <ChevronRight className="w-3 h-3" />
@@ -1548,50 +1187,23 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             </form>
           </div>
 
-          {/* LIVE Spectate Card */}
-          <div
-            onClick={() => {
-              if (displayTables.length > 0) {
-                onSpectateRoom(displayTables[0].code, playerName, selectedAvatar);
-              }
-            }}
-            className={`p-3.5 sm:p-4 rounded-2xl bg-white/[0.02] border transition-all ${
-              displayTables.length > 0 ? 'border-white/[0.06] hover:border-white/[0.1] cursor-pointer' : 'border-white/[0.03] opacity-70 cursor-default'
-            } group`}
-          >
-            <div className="flex items-center justify-between mb-1">
-              <span className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-mono font-bold text-red-400">
-                <span className={`w-2 h-2 rounded-full ${displayTables.length > 0 ? 'bg-red-500 animate-pulse' : 'bg-slate-600'}`} />
-                LIVE
-              </span>
-              {displayTables.length > 0 && (
-                <button className="px-2 py-0.5 sm:py-1 rounded-lg bg-slate-900 border border-slate-800 group-hover:border-[#FF4600]/40 text-[10px] sm:text-xs font-bold text-slate-300 group-hover:text-white flex items-center gap-1 transition-all">
-                  <Eye className="w-3 h-3 text-[#FF4600]" />
-                  <span>Spectate</span>
-                </button>
-              )}
-            </div>
-            <div className="text-xs sm:text-sm font-black text-white group-hover:text-[#FF4600] transition-colors">
-              Spectate Games
-            </div>
-            <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5">
-              {displayTables.length > 0 ? `Watch ${displayTables.length} ongoing match${displayTables.length > 1 ? 'es' : ''} in real time.` : 'No active matches currently.'}
-            </p>
-          </div>
-
           {/* Friends Online Card */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
-            <div className="flex items-center justify-between pb-2.5 sm:pb-3 border-b border-white/[0.05] mb-2.5 sm:mb-3">
-              <div className="text-xs font-black text-white">Friends Online</div>
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+            <div className="flex items-center justify-between pb-2 border-b border-white/[0.05] mb-2">
+              <div className="text-xs font-black text-white flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-slate-400" />
+                <span>Friends Online</span>
+              </div>
               <button
+                type="button"
                 onClick={onOpenFriends}
-                className="text-[10px] sm:text-[11px] text-[#FF4600] hover:underline font-bold"
+                className="text-[10px] sm:text-[11px] text-[#FF4600] hover:underline font-bold cursor-pointer"
               >
                 View All →
               </button>
             </div>
 
-            <div className="pt-1">
+            <div>
               {onlineFriends.length > 0 ? (
                 <div className="flex items-center justify-start gap-2 overflow-x-auto no-scrollbar py-1">
                   {onlineFriends.slice(0, 5).map((f) => (
@@ -1614,9 +1226,9 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                   ))}
                 </div>
               ) : (
-                <div className="py-2.5 text-center">
+                <div className="py-2 text-center">
                   <p className="text-[11px] text-slate-400">
-                    {!wallet.address ? 'Connect wallet to see online friends' : 'No friends online right now'}
+                    {!wallet.address ? 'Connect wallet to see friends' : 'No friends online right now'}
                   </p>
                   <button
                     type="button"
@@ -1629,25 +1241,6 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 </div>
               )}
             </div>
-          </div>
-
-          {/* New here? Tips Card */}
-          <div
-            onClick={onOpenRules}
-            className="p-3.5 sm:p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.1] transition-all cursor-pointer flex items-center justify-between group"
-          >
-            <div className="flex items-start gap-2.5 sm:gap-3">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/[0.06] flex items-center justify-center text-amber-400/70 shrink-0 mt-0.5">
-                <Lightbulb className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              </div>
-              <div>
-                <h4 className="text-[11px] sm:text-xs font-black text-white">New here?</h4>
-                <p className="text-[10px] sm:text-[11px] text-slate-400 leading-snug">
-                  Click Quick Play to join a public game instantly.
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-600 group-hover:text-slate-400 transition-colors shrink-0 ml-2" />
           </div>
         </div>
       </div>

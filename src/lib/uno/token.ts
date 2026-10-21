@@ -27,14 +27,16 @@ export async function fetchTokenBalance(address: string): Promise<{
     const res = await fetch(`/api/token/balance/${encodeURIComponent(address.trim())}`);
     if (!res.ok) throw new Error(`HTTP error ${res.status}`);
     const data = await res.json();
+    const hasClaimed = Boolean(data.hasClaimed);
+    const eligible = data.eligible !== undefined ? Boolean(data.eligible) : !hasClaimed;
     return {
       balance: data.balance || '0',
-      eligible: Boolean(data.eligible),
-      hasClaimed: Boolean(data.hasClaimed),
+      eligible,
+      hasClaimed,
     };
   } catch (err) {
     console.warn('[Token] Error fetching balance:', err);
-    return { balance: '0', eligible: false, hasClaimed: false };
+    return { balance: '0', eligible: true, hasClaimed: false };
   }
 }
 

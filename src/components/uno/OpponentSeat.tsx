@@ -25,21 +25,19 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
   sidePosition,
   stackPlacement,
 }) => {
-  // Determine if card stack sits to the left, right, or top of the avatar
-  const effectiveStackPlacement: 'left' | 'right' | 'top' =
-    stackPlacement || (sidePosition === 'left' ? 'left' : sidePosition === 'top' ? 'top' : 'right');
+  // Always use clean horizontal outer layout matching LumiBear (left) and SoliditySam (right)
+  const effectiveStackPlacement: 'left' | 'right' =
+    stackPlacement === 'left' || sidePosition === 'left' ? 'left' : 'right';
 
-  const isTopStack = effectiveStackPlacement === 'top';
+  const isReversed = effectiveStackPlacement === 'right';
 
   return (
     <div
       id={`opponent-seat-${player.id}`}
       className={`relative flex items-center select-none ${
-        isTopStack
-          ? 'flex-col gap-1'
-          : effectiveStackPlacement === 'left'
-          ? 'flex-row gap-1.5 xs:gap-2 sm:gap-2.5'
-          : 'flex-row-reverse gap-1.5 xs:gap-2 sm:gap-2.5'
+        isReversed
+          ? 'flex-row-reverse gap-1.5 sm:gap-2.5'
+          : 'flex-row gap-1.5 sm:gap-2.5'
       } ${positionStyle}`}
     >
       {/* Floating Emote on top */}
@@ -55,8 +53,8 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
       )}
 
       {/* Avatar & Name Column */}
-      <div className="flex flex-col items-center">
-        {/* GAMEPIGEON CIRCULAR AVATAR (Screenshots 1 & 2) */}
+      <div className="flex flex-col items-center shrink-0">
+        {/* GAMEPIGEON CIRCULAR AVATAR */}
         <div className="relative">
           {isCurrentTurn && (
             <div className="absolute -inset-1 rounded-full border-2 border-white animate-ping opacity-50 pointer-events-none" />
@@ -64,7 +62,7 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
 
           <div
             className={`
-              relative w-7 h-7 xs:w-8 xs:h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-sm xs:text-base sm:text-xl
+              relative w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-sm sm:text-lg
               transition-all duration-300 shadow-xl
               ${isCurrentTurn ? 'ring-2 sm:ring-3 ring-white scale-105 shadow-white/50' : 'ring-1.5 ring-white/40'}
               ${!player.isConnected ? 'opacity-50 grayscale' : ''}
@@ -84,21 +82,21 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
 
             {/* Bot / Host Tag */}
             {player.isBot && (
-              <div className="absolute -top-1 -right-1 bg-sky-600 text-white text-[5px] xs:text-[6px] sm:text-[7px] font-extrabold px-0.8 rounded-sm uppercase tracking-wider shadow-sm">
+              <div className="absolute -top-1 -right-1 bg-sky-600 text-white text-[6px] sm:text-[7px] font-extrabold px-1 py-0.2 rounded-sm uppercase tracking-wider shadow-sm">
                 BOT
               </div>
             )}
             {player.isHost && !player.isBot && (
-              <div className="absolute -top-1 -left-1 bg-amber-500 text-slate-950 text-[5px] xs:text-[6px] sm:text-[7px] font-extrabold px-0.8 rounded-sm uppercase tracking-wider shadow-sm">
+              <div className="absolute -top-1 -left-1 bg-amber-500 text-slate-950 text-[6px] sm:text-[7px] font-extrabold px-1 py-0.2 rounded-sm uppercase tracking-wider shadow-sm">
                 HOST
               </div>
             )}
           </div>
         </div>
 
-        {/* Player Name (GamePigeon Typography: Screenshot 2) */}
-        <div className="mt-0.5 flex flex-col items-center max-w-[55px] xs:max-w-[65px] sm:max-w-[85px]">
-          <span className="text-[8px] xs:text-[9px] sm:text-[10px] font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] truncate tracking-tight text-center">
+        {/* Player Name */}
+        <div className="mt-0.5 flex flex-col items-center max-w-[65px] sm:max-w-[85px]">
+          <span className="text-[9px] sm:text-[10px] font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] truncate tracking-tight text-center">
             {player.name}
           </span>
 

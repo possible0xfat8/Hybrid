@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Socket } from 'socket.io-client';
 import { getUnoSocket } from '@/lib/socket/socketFactory';
-import { GameState, Card, CardColor, FloatingEmote, ChatMessage, PublicRoomSummary, GameInviteEvent, EnrichedFriend, UserNotification } from '@/types/uno';
+import { GameState, Card, CardColor, FloatingEmote, ChatMessage, PublicRoomSummary, GameInviteEvent, EnrichedFriend, UserNotification, isWildCard, isDefenseCard, isActionCard } from '@/types/uno';
 import { soundEngine } from '@/lib/uno/audio';
 import { CardComponent } from './CardComponent';
 import { OpponentSeat } from './OpponentSeat';
@@ -38,6 +38,7 @@ import {
   DiscoveredWallet,
   connectWalletProvider,
   clearActiveProvider,
+  createGuestArcadeWallet,
 } from '@/lib/uno/wallet';
 import {
   getOrCreateAccountProfile,
@@ -148,20 +149,20 @@ function getOpponentPosition(
     } else if (totalOpponents === 3) {
       // 3 opponents (classic 4-player game): Mid-Left, Top Center, Mid-Right
       if (idx === 0) {
-        leftPercent = 13; // Pushed outward towards left edge to avoid center cards
-        topPercent = 33; // Kept above center cards (which sit at 56%)
+        leftPercent = 12; // Pushed outward towards left edge
+        topPercent = 50;
         stackPlacement = 'left';
-        angleDeg = 175;
+        angleDeg = 180;
       } else if (idx === 1) {
         leftPercent = 50;
-        topPercent = 20; // Brought down so top player card stack is completely inside table
-        stackPlacement = 'top';
+        topPercent = 14; // Clean top margin, completely above center table and never clipped
+        stackPlacement = 'left'; // Horizontal side-by-side matching LumiBear and SoliditySam
         angleDeg = 90;
       } else {
-        leftPercent = 87; // Pushed outward towards right edge to avoid center cards
-        topPercent = 33; // Kept above center cards (which sit at 56%)
+        leftPercent = 88; // Pushed outward towards right edge
+        topPercent = 50;
         stackPlacement = 'right';
-        angleDeg = 5;
+        angleDeg = 0;
       }
     } else if (totalOpponents === 4) {
       // 4 opponents (5-player game): Lower-Left, Upper-Left, Upper-Right, Lower-Right
@@ -171,13 +172,13 @@ function getOpponentPosition(
         stackPlacement = 'left';
         angleDeg = 195;
       } else if (idx === 1) {
-        leftPercent = 18;
-        topPercent = 24;
+        leftPercent = 20;
+        topPercent = 18;
         stackPlacement = 'left';
         angleDeg = 145;
       } else if (idx === 2) {
-        leftPercent = 82;
-        topPercent = 24;
+        leftPercent = 80;
+        topPercent = 18;
         stackPlacement = 'right';
         angleDeg = 35;
       } else {
@@ -187,26 +188,25 @@ function getOpponentPosition(
         angleDeg = 345;
       }
     } else if (totalOpponents === 5) {
-      // 5 opponents (6-player game):
-      // Lower-Left, Upper-Left, Top Center, Upper-Right, Lower-Right
+      // 5 opponents (6-player game): Lower-Left, Upper-Left, Top Center, Upper-Right, Lower-Right
       if (idx === 0) {
         leftPercent = 13;
         topPercent = 56;
         stackPlacement = 'left';
         angleDeg = 200;
       } else if (idx === 1) {
-        leftPercent = 18;
-        topPercent = 26;
+        leftPercent = 20;
+        topPercent = 20;
         stackPlacement = 'left';
         angleDeg = 145;
       } else if (idx === 2) {
         leftPercent = 50;
-        topPercent = 20; // Brought down so top stack is not cut off
-        stackPlacement = 'top';
+        topPercent = 14;
+        stackPlacement = 'left';
         angleDeg = 90;
       } else if (idx === 3) {
-        leftPercent = 82;
-        topPercent = 26;
+        leftPercent = 80;
+        topPercent = 20;
         stackPlacement = 'right';
         angleDeg = 35;
       } else {
@@ -223,8 +223,8 @@ function getOpponentPosition(
       const angleRad = (angleDeg * Math.PI) / 180;
       leftPercent = 50 + 35 * Math.cos(angleRad);
       topPercent = 52 - 32 * Math.sin(angleRad);
-      stackPlacement =
-        topPercent < 24 && Math.abs(leftPercent - 50) < 15 ? 'top' : leftPercent < 50 ? 'left' : 'right';
+      if (topPercent < 22) topPercent = 14;
+      stackPlacement = leftPercent < 50 ? 'left' : 'right';
     }
   } else {
     // Desktop Widescreen View:
@@ -234,14 +234,19 @@ function getOpponentPosition(
     angleDeg = (270 - (idx + 1) * step + 360) % 360;
     const angleRad = (angleDeg * Math.PI) / 180;
     leftPercent = 50 + 40 * Math.cos(angleRad);
-    topPercent = 50 - 33 * Math.sin(angleRad);
-    stackPlacement =
-      topPercent < 22 && Math.abs(leftPercent - 50) < 15 ? 'top' : leftPercent < 50 ? 'left' : 'right';
+    topPercent = 50 - 35 * Math.sin(angleRad);
+    
+    // Top player (angle near 90° or topPercent < 25): clamp to 14% to guarantee no boundary clipping
+    if (topPercent < 25) {
+      topPercent = 14;
+    }
+    // Horizontal layout matching LumiBear & SoliditySam (never vertical 'top')
+    stackPlacement = leftPercent < 50 ? 'left' : 'right';
   }
 
-  // Active turn conic spotlight rotation pointing from seat towards center table (50, 63)
+  // Active turn conic spotlight rotation pointing from seat towards center table (50, 50)
   const deltaX = 50 - leftPercent;
-  const deltaY = (isMobile ? 60 : 63) - topPercent;
+  const deltaY = (isMobile ? 52 : 50) - topPercent;
   const beamRotationDeg = Math.atan2(deltaX, deltaY) * (180 / Math.PI);
 
   return { leftPercent, topPercent, angleDeg, stackPlacement, beamRotationDeg };
@@ -310,21 +315,17 @@ export default function App() {
   const [tokenBalance, setTokenBalance] = useState<string>('0');
   const [isAirdropEligible, setIsAirdropEligible] = useState<boolean>(false);
   const [isAirdropOpen, setIsAirdropOpen] = useState<boolean>(false);
-  const [hasClaimedAirdrop, setHasClaimedAirdrop] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('hemi_uno_airdrop_claimed') === 'true';
-    } catch {
-      return false;
-    }
-  });
-  const [tourDismissed, setTourDismissed] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('hemi_uno_tour_dismissed') === 'true';
-    } catch {
-      return false;
-    }
-  });
+  const [hasClaimedAirdrop, setHasClaimedAirdrop] = useState<boolean>(false);
+  const [tourDismissed, setTourDismissed] = useState<boolean>(false);
   const [tokenLoading, setTokenLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('hemi_uno_tour_dismissed') === 'true') {
+        setTourDismissed(true);
+      }
+    } catch {}
+  }, []);
 
   // User Notifications state
   const [isNotificationsOpen, setIsNotificationsOpen] = useState<boolean>(false);
@@ -379,32 +380,31 @@ export default function App() {
     if (!address) {
       setTokenBalance('0');
       setIsAirdropEligible(false);
-      try {
-        setHasClaimedAirdrop(localStorage.getItem('hemi_uno_airdrop_claimed') === 'true');
-      } catch {
-        setHasClaimedAirdrop(false);
-      }
+      setHasClaimedAirdrop(false);
       return;
     }
     setTokenLoading(true);
     try {
-      const walletClaimedKey = `hemi_uno_airdrop_claimed_${address.toLowerCase()}`;
+      const cleanAddr = address.trim().toLowerCase();
+      const walletClaimedKey = `hemi_uno_airdrop_claimed_${cleanAddr}`;
+      let cachedClaimed = false;
       try {
-        if (localStorage.getItem(walletClaimedKey) === 'true') {
-          setHasClaimedAirdrop(true);
-        }
+        cachedClaimed = localStorage.getItem(walletClaimedKey) === 'true';
       } catch {}
 
-      const res = await fetchTokenBalance(address);
+      const res = await fetchTokenBalance(cleanAddr);
       setTokenBalance(res.balance);
-      setIsAirdropEligible(res.eligible);
-      setHasClaimedAirdrop(res.hasClaimed);
+      const isClaimed = Boolean(res.hasClaimed || cachedClaimed);
+      setHasClaimedAirdrop(isClaimed);
+      setIsAirdropEligible(!isClaimed);
 
-      if (res.hasClaimed) {
+      if (isClaimed) {
         try {
-          localStorage.setItem('hemi_uno_airdrop_claimed', 'true');
           localStorage.setItem(walletClaimedKey, 'true');
         } catch {}
+      } else {
+        // Auto-popup claim chips modal for newly connected wallets that have not claimed yet
+        setIsAirdropOpen(true);
       }
     } finally {
       setTokenLoading(false);
@@ -657,6 +657,28 @@ export default function App() {
     } finally {
       setConnectingWalletId(null);
     }
+  };
+
+  const handleSelectGuestWallet = () => {
+    const guest = createGuestArcadeWallet();
+    const cleanAddr = guest.address.toLowerCase();
+    const profile = getOrCreateAccountProfile(cleanAddr);
+    if (profile) {
+      setAccount(profile);
+    }
+    saveLastConnectedWallet(cleanAddr);
+
+    setWallet({
+      address: guest.address,
+      chainId: guest.chainId,
+      balance: guest.balance,
+      isConnecting: false,
+      error: null,
+      walletName: 'Arcade Guest',
+    });
+    setTokenBalance('10000');
+    soundEngine.play('card_deal');
+    setIsWalletModalOpen(false);
   };
 
   const handleDisconnectWallet = () => {
@@ -1243,22 +1265,47 @@ export default function App() {
 
   // Lobby actions
   const handleCreateRoom = (playerName: string, avatar: string, buyIn: string, address?: string) => {
-    if (!socket) return;
-    const playerAddress = address || wallet.address || undefined;
-    if (!playerAddress || !playerAddress.startsWith('0x') || !account) {
-      setErrorMessage('Please connect your Web3 wallet first to create a table.');
-      handleConnectWallet();
-      return;
+    let s = socket;
+    if (!s) {
+      s = getUnoSocket();
+      if (s) setSocket(s);
     }
+    if (!s) return;
+
+    let activeAddress = address || wallet.address;
+    let activeAccount = account;
+
+    if (!activeAddress || !activeAddress.startsWith('0x') || !activeAccount) {
+      const guest = createGuestArcadeWallet();
+      const cleanAddr = guest.address.toLowerCase();
+      const profile = getOrCreateAccountProfile(cleanAddr);
+      if (profile) {
+        setAccount(profile);
+        activeAccount = profile;
+      }
+      saveLastConnectedWallet(cleanAddr);
+      setWallet({
+        address: guest.address,
+        chainId: guest.chainId,
+        balance: guest.balance,
+        isConnecting: false,
+        error: null,
+        walletName: 'Arcade Guest',
+      });
+      setTokenBalance('10000');
+      activeAddress = guest.address;
+    }
+
+    if (!activeAddress || !activeAccount) return;
     setErrorMessage(null);
-    socket.emit(
+    s.emit(
       'room:create',
       {
-        accountId: account.id,
-        playerName: playerName || account.name,
-        avatar: avatar || account.avatar,
+        accountId: activeAccount.id,
+        playerName: playerName || activeAccount.name,
+        avatar: avatar || activeAccount.avatar,
         buyIn,
-        address: playerAddress,
+        address: activeAddress,
       },
       (res: any) => {
         if (!res.success) {
@@ -1279,22 +1326,47 @@ export default function App() {
   };
 
   const handleJoinRoom = (roomCode: string, playerName: string, avatar: string, address?: string) => {
-    if (!socket) return;
-    const playerAddress = address || wallet.address || undefined;
-    if (!playerAddress || !playerAddress.startsWith('0x') || !account) {
-      setErrorMessage('Please connect your Web3 wallet first to join a table.');
-      handleConnectWallet();
-      return;
+    let s = socket;
+    if (!s) {
+      s = getUnoSocket();
+      if (s) setSocket(s);
     }
+    if (!s) return;
+
+    let activeAddress = address || wallet.address;
+    let activeAccount = account;
+
+    if (!activeAddress || !activeAddress.startsWith('0x') || !activeAccount) {
+      const guest = createGuestArcadeWallet();
+      const cleanAddr = guest.address.toLowerCase();
+      const profile = getOrCreateAccountProfile(cleanAddr);
+      if (profile) {
+        setAccount(profile);
+        activeAccount = profile;
+      }
+      saveLastConnectedWallet(cleanAddr);
+      setWallet({
+        address: guest.address,
+        chainId: guest.chainId,
+        balance: guest.balance,
+        isConnecting: false,
+        error: null,
+        walletName: 'Arcade Guest',
+      });
+      setTokenBalance('10000');
+      activeAddress = guest.address;
+    }
+
+    if (!activeAddress || !activeAccount) return;
     setErrorMessage(null);
-    socket.emit(
+    s.emit(
       'room:join',
       {
         roomCode: roomCode.toUpperCase(),
-        accountId: account.id,
-        playerName: playerName || account.name,
-        avatar: avatar || account.avatar,
-        address: playerAddress,
+        accountId: activeAccount.id,
+        playerName: playerName || activeAccount.name,
+        avatar: avatar || activeAccount.avatar,
+        address: activeAddress,
       },
       (res: any) => {
         if (!res.success) {
@@ -1316,22 +1388,47 @@ export default function App() {
 
   // 1-Click Quick Match - joins open waiting room or creates one automatically
   const handleQuickJoin = () => {
-    if (!socket) return;
-    const playerAddress = wallet.address || undefined;
-    if (!playerAddress || !playerAddress.startsWith('0x') || !account) {
-      setErrorMessage('Please connect your Web3 wallet first to use Quick Play.');
-      handleConnectWallet();
-      return;
+    let s = socket;
+    if (!s) {
+      s = getUnoSocket();
+      if (s) setSocket(s);
     }
+    if (!s) return;
+
+    let activeAddress = wallet.address;
+    let activeAccount = account;
+
+    if (!activeAddress || !activeAddress.startsWith('0x') || !activeAccount) {
+      const guest = createGuestArcadeWallet();
+      const cleanAddr = guest.address.toLowerCase();
+      const profile = getOrCreateAccountProfile(cleanAddr);
+      if (profile) {
+        setAccount(profile);
+        activeAccount = profile;
+      }
+      saveLastConnectedWallet(cleanAddr);
+      setWallet({
+        address: guest.address,
+        chainId: guest.chainId,
+        balance: guest.balance,
+        isConnecting: false,
+        error: null,
+        walletName: 'Arcade Guest',
+      });
+      setTokenBalance('10000');
+      activeAddress = guest.address;
+    }
+
+    if (!activeAddress || !activeAccount) return;
     setErrorMessage(null);
-    socket.emit(
+    s.emit(
       'room:quick_join',
       {
-        playerName: account.name,
-        avatar: account.avatar,
-        accountId: account.id,
-        userId: account.id,
-        address: playerAddress,
+        playerName: activeAccount.name,
+        avatar: activeAccount.avatar,
+        accountId: activeAccount.id,
+        userId: activeAccount.id,
+        address: activeAddress,
       },
       (res: any) => {
         if (!res.success) {
@@ -1469,8 +1566,8 @@ export default function App() {
     if (!socket || !gameState) return;
     if (!isMyTurn && gameState.currentTurnPlayerId !== myPlayer?.id && gameState.currentTurnPlayerId !== myPlayerId) return;
 
-    if (card.color === 'wild' || card.value === '8' || card.value === 'wild_draw4') {
-      // Prompt Crazy 8 color nomination cross modal
+    if (isWildCard(card)) {
+      // Prompt Wild / Crazy 8 color nomination cross modal
       setPendingWildCard(card);
     } else {
       socket.emit('game:play_card', { cardId: card.id }, (res: any) => {
@@ -1588,7 +1685,7 @@ export default function App() {
   const topCard = gameState?.topDiscardCard || null;
 
   // Compute defense ability when under attack (+2, +4 stack)
-  const myDefenseCards = myPlayer?.hand?.filter((c) => c.value === 'draw2' || c.value === 'wild_draw4') || [];
+  const myDefenseCards = myPlayer?.hand?.filter(isDefenseCard) || [];
   const canDefendAttack = myDefenseCards.length > 0;
 
   // Compute opponents list in clockwise seating order relative to the player
@@ -1607,14 +1704,14 @@ export default function App() {
     return list;
   }, [gameState?.players, myPlayerId, isSpectator]);
 
-  // Check if each card in hand is playable (Crazy 8 rules: all 8s and wild_draw4 are wild)
+  // Check if each card in hand is playable (Physical deck rules with defensive stacking)
   const isCardPlayable = (c: Card) => {
     if (!isMyTurn || isSpectator) return false;
-    // Defense stacking rule: If under attack (+2 or +4), player MUST defend with +2 or +4
+    // Defensive stacking rule: If under attack (+2 or +4), player MUST defend with +2 or +4
     if (gameState?.pendingDrawCount && gameState.pendingDrawCount > 0) {
-      return c.value === 'draw2' || c.value === 'wild_draw4';
+      return isDefenseCard(c);
     }
-    if (c.color === 'wild' || c.value === '8' || c.value === 'wild_draw4') return true;
+    if (isWildCard(c)) return true;
     if (c.color === gameState?.activeColor) return true;
     if (topCard && c.value === topCard.value) return true;
     return false;
@@ -1723,38 +1820,44 @@ export default function App() {
           {/* Hemi Crazy 8 Token ($CRAZY8) Balance & Airdrop Chip */}
           {wallet.address ? (
             <div className="flex items-center gap-1.5 shrink-0">
-              <div
-                className="hidden xs:flex items-center gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.06] text-[11px] sm:text-xs font-mono font-medium text-slate-300"
-                title={`${formatTokenAmount(tokenBalance)} $CRAZY8 Chips`}
+              <button
+                type="button"
+                onClick={() => setIsAirdropOpen(true)}
+                className="hidden xs:flex items-center gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.06] hover:border-white/[0.12] text-[11px] sm:text-xs font-mono font-medium text-slate-300 transition-colors cursor-pointer"
+                title="Click to check $CRAZY8 Chips & Airdrop Status"
               >
                 <Coins className="w-3.5 h-3.5 text-[#FF4600] shrink-0" />
                 <span>{formatTokenAmount(tokenBalance)}</span>
                 <span className="text-[9px] sm:text-[10px] text-slate-500 font-sans font-medium">CRAZY8</span>
-              </div>
+              </button>
 
-              {isAirdropEligible && (
-                <button
-                  id="nav-airdrop-gift-btn"
-                  onClick={() => setIsAirdropOpen(true)}
-                  className="relative z-30 flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-gradient-to-r from-[#FF4600] to-[#FF6B00] hover:from-[#FF5500] hover:to-[#FF7B00] text-[10px] sm:text-xs font-bold text-white transition-all active:scale-95 cursor-pointer shrink-0 shadow-[0_0_12px_rgba(255,70,0,0.5)]"
-                  title="Claim 10,000 $CRAZY8 Welcome Airdrop"
-                >
-                  <Gift className="w-3.5 h-3.5 animate-pulse" />
-                  <span className="hidden xs:inline">10K Airdrop</span>
-                </button>
-              )}
+              <button
+                id="nav-airdrop-gift-btn"
+                onClick={() => setIsAirdropOpen(true)}
+                className={`relative z-30 flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-bold transition-all active:scale-95 cursor-pointer shrink-0 ${
+                  isAirdropEligible
+                    ? 'bg-gradient-to-r from-[#FF4600] to-[#FF6B00] hover:from-[#FF5500] hover:to-[#FF7B00] text-white shadow-[0_0_12px_rgba(255,70,0,0.5)] animate-pulse'
+                    : 'bg-white/[0.05] hover:bg-white/[0.09] border border-white/[0.08] text-emerald-400'
+                }`}
+                title={isAirdropEligible ? 'Claim 10,000 $CRAZY8 Welcome Airdrop' : 'Check 10,000 $CRAZY8 Airdrop Status'}
+              >
+                <Gift className="w-3.5 h-3.5" />
+                <span className="hidden xs:inline">
+                  {isAirdropEligible ? '10K Airdrop' : '10K Claimed'}
+                </span>
+              </button>
             </div>
-          ) : !hasClaimedAirdrop ? (
+          ) : (
             <button
               id="nav-airdrop-gift-btn"
               onClick={handleConnectWallet}
-              className="relative z-30 flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-gradient-to-r from-[#FF4600] to-[#FF6B00] hover:from-[#FF5500] hover:to-[#FF7B00] text-[10px] sm:text-xs font-bold text-white transition-all active:scale-95 cursor-pointer shrink-0 shadow-[0_0_12px_rgba(255,70,0,0.5)]"
-              title="Claim 10,000 $CRAZY8 Welcome Airdrop"
+              className="relative z-30 flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-gradient-to-r from-[#FF4600] to-[#FF6B00] hover:from-[#FF5500] hover:to-[#FF7B00] text-[10px] sm:text-xs font-bold text-white transition-all active:scale-95 cursor-pointer shrink-0 shadow-[0_0_12px_rgba(255,70,0,0.5)] animate-pulse"
+              title="Connect Wallet to Claim 10,000 $CRAZY8 Chips"
             >
-              <Gift className="w-3.5 h-3.5 animate-pulse" />
+              <Gift className="w-3.5 h-3.5" />
               <span className="hidden xs:inline">10K Gift</span>
             </button>
-          ) : null}
+          )}
 
           {/* User Avatar — ONLY VISIBLE WHEN WALLET IS CONNECTED */}
           {wallet.address && account && (
@@ -1930,6 +2033,10 @@ export default function App() {
             liveStats={liveStats}
             isMusicOn={isMusicOn && !isMuted}
             onToggleMusic={toggleMusic}
+            tokenBalance={tokenBalance}
+            onOpenAirdrop={() => setIsAirdropOpen(true)}
+            isAirdropEligible={isAirdropEligible}
+            hasClaimedAirdrop={hasClaimedAirdrop}
           />
         )}
 
@@ -1945,7 +2052,7 @@ export default function App() {
             )}
             {/* Circular Table Arena with GamePigeon Red Felt Surface */}
             <div
-              className="relative w-full max-w-2xl sm:max-w-3xl md:max-w-4xl flex-1 flex items-center justify-center my-auto px-1 sm:px-4 select-none min-h-[350px] xs:min-h-[390px] sm:min-h-[430px] md:min-h-[470px] rounded-3xl sm:rounded-[44px] overflow-hidden shadow-2xl border border-white/[0.06]"
+              className="relative w-full max-w-2xl sm:max-w-3xl md:max-w-4xl flex-1 min-h-[200px] max-h-[50vh] flex items-center justify-center my-0.5 px-1 sm:px-4 select-none rounded-3xl sm:rounded-[36px] overflow-hidden shadow-2xl border border-white/[0.06]"
               style={{
                 backgroundColor: '#1A1215',
                 backgroundImage: `
@@ -2011,7 +2118,7 @@ export default function App() {
               <div className="absolute inset-0 pointer-events-none z-5">
                 {/* Left Arrow (between lower-left and bottom player, pointing in turn direction) */}
                 <div
-                  className={`absolute left-[28%] ${isMobile ? 'top-[65%]' : 'top-[67%]'} transition-transform duration-700 ${
+                  className={`absolute left-[28%] ${isMobile ? 'top-[52%]' : 'top-[50%]'} transition-transform duration-700 ${
                     gameState.turnDirection === 1 ? 'rotate-[-35deg]' : 'rotate-[145deg]'
                   }`}
                 >
@@ -2026,7 +2133,7 @@ export default function App() {
 
                 {/* Right Arrow (between bottom and lower-right player, pointing in turn direction) */}
                 <div
-                  className={`absolute right-[28%] ${isMobile ? 'top-[65%]' : 'top-[67%]'} transition-transform duration-700 ${
+                  className={`absolute right-[28%] ${isMobile ? 'top-[52%]' : 'top-[50%]'} transition-transform duration-700 ${
                     gameState.turnDirection === 1 ? 'rotate-[-35deg]' : 'rotate-[145deg]'
                   }`}
                 >
@@ -2040,10 +2147,10 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Center Cards (Draw deck & Discard pile brought down so opponent profiles never overlap) */}
+              {/* Center Cards (Draw deck & Discard pile centered on table) */}
               <div
                 className={`absolute left-1/2 ${
-                  isMobile ? 'top-[60%]' : 'top-[63%]'
+                  isMobile ? 'top-[52%]' : 'top-[50%]'
                 } -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-auto`}
               >
                 {/* Active Player Conic Spotlight (Screenshot 2: GamePigeon turn beam shining up toward center cards) */}
@@ -2120,32 +2227,33 @@ export default function App() {
                   {isMyTurn ? (
                     gameState.pendingDrawCount && gameState.pendingDrawCount > 0 ? (
                       canDefendAttack ? (
-                        /* Can defend with +2 or +4 */
-                        <div className="w-full max-w-md mx-auto px-3 py-1.5 rounded-2xl bg-gradient-to-r from-rose-950/90 via-red-900/90 to-amber-950/90 border-2 border-rose-500 shadow-xl flex items-center justify-between gap-2 animate-pulse">
+                        /* Can defend with +2 or +4: Informative defend guidance with subtle secondary penalty button */
+                        <div className="w-full max-w-md mx-auto px-3.5 py-1.5 rounded-2xl bg-gradient-to-r from-amber-950/90 via-rose-950/90 to-purple-950/90 border border-amber-500/60 shadow-xl flex items-center justify-between gap-2.5 backdrop-blur-md">
                           <div className="flex items-center gap-2 text-white min-w-0">
                             <Flame
                               className="w-4 h-4 text-amber-400 fill-amber-400 shrink-0 animate-spin"
                               style={{ animationDuration: '3s' }}
                             />
                             <div className="truncate">
-                              <div className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-rose-200">
+                              <div className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-amber-200">
                                 DEFEND OR STACK (+{gameState.pendingDrawCount} CARDS)
                               </div>
                               <div className="text-[10px] text-slate-300 truncate">
-                                Play +2 or +4 to defend, or tap to take penalty ({gameState.turnTimeRemaining}s)
+                                Play a glowing card to defend, or take penalty ({gameState.turnTimeRemaining}s)
                               </div>
                             </div>
                           </div>
                           <button
                             onClick={handleDrawCard}
-                            className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-rose-600 to-amber-500 hover:from-rose-500 hover:to-amber-400 text-white font-black text-[10px] sm:text-xs uppercase tracking-wider shadow-md active:scale-95 shrink-0 cursor-pointer"
+                            className="px-2.5 py-1 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-rose-300 hover:text-rose-200 border border-rose-500/40 hover:border-rose-400 text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-colors active:scale-95 shrink-0 cursor-pointer"
+                            title="Take penalty cards"
                           >
                             TAKE +{gameState.pendingDrawCount}
                           </button>
                         </div>
                       ) : (
                         /* No defense in hand: must draw penalty cards */
-                        <div className="w-full max-w-md mx-auto px-3 py-1.5 rounded-2xl bg-gradient-to-r from-rose-950/90 via-red-900/90 to-slate-900/90 border-2 border-rose-500 shadow-xl flex items-center justify-between gap-2 animate-pulse">
+                        <div className="w-full max-w-md mx-auto px-3.5 py-1.5 rounded-2xl bg-gradient-to-r from-rose-950/90 via-red-900/90 to-slate-900/90 border border-rose-500/80 shadow-xl flex items-center justify-between gap-2.5 backdrop-blur-md animate-pulse">
                           <div className="flex items-center gap-2 text-white min-w-0">
                             <Flame className="w-4 h-4 text-rose-400 fill-rose-400 shrink-0 animate-bounce" />
                             <div className="truncate">
@@ -2159,7 +2267,7 @@ export default function App() {
                           </div>
                           <button
                             onClick={handleDrawCard}
-                            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-500 hover:from-rose-500 hover:to-red-400 text-white font-black text-[10px] sm:text-xs uppercase tracking-wider shadow-lg shadow-rose-600/50 active:scale-95 shrink-0 animate-bounce cursor-pointer"
+                            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-500 hover:from-rose-500 hover:to-red-400 text-white font-black text-[10px] sm:text-xs uppercase tracking-wider shadow-lg shadow-rose-600/50 active:scale-95 shrink-0 cursor-pointer"
                           >
                             PICK +{gameState.pendingDrawCount} CARDS
                           </button>
@@ -2321,17 +2429,26 @@ export default function App() {
                     const handCount = sortedCards.length;
                     const handCardSize = isMobile ? 'sm' : handCount > 14 ? 'xs' : handCount > 7 ? 'sm' : 'adaptive';
 
-                    // Responsive spacing that preserves at least 26px-34px of visible corner per card
-                    const spacingClass =
-                      handCount > 16
-                        ? '-space-x-7 xs:-space-x-8 sm:-space-x-10'
-                        : handCount > 11
-                        ? '-space-x-6 xs:-space-x-7 sm:-space-x-9'
-                        : handCount > 7
-                        ? '-space-x-5 xs:-space-x-6 sm:-space-x-8'
-                        : handCount > 4
-                        ? '-space-x-3.5 xs:-space-x-4.5 sm:-space-x-6'
-                        : '-space-x-1 sm:-space-x-2';
+                    // Compute dynamic uniform overlap in pixels based on card size and hand count
+                    const cardWidthPx = isMobile
+                      ? (handCount > 14 ? 48 : 56)
+                      : (handCount > 14 ? 56 : handCount > 7 ? 68 : 78);
+
+                    // Dynamic proportional negative margin so all cards have uniform visible edges
+                    let overlapPx = 0;
+                    if (handCount <= 4) {
+                      overlapPx = 0;
+                    } else if (handCount <= 7) {
+                      overlapPx = Math.round(cardWidthPx * 0.28);
+                    } else if (handCount <= 10) {
+                      overlapPx = Math.round(cardWidthPx * 0.38);
+                    } else if (handCount <= 14) {
+                      overlapPx = Math.round(cardWidthPx * 0.48);
+                    } else {
+                      overlapPx = Math.min(Math.round(cardWidthPx * 0.58), cardWidthPx - 24);
+                    }
+
+                    const isUnderAttack = isMyTurn && (gameState.pendingDrawCount || 0) > 0;
 
                     if (handCount === 0 && gameState.status === 'playing') {
                       return (
@@ -2367,9 +2484,9 @@ export default function App() {
                         <div
                           ref={handScrollRef}
                           className={`
-                            w-full flex items-end overflow-x-auto no-scrollbar scroll-smooth touch-pan-x
-                            py-3 px-6 sm:px-12 min-h-[100px] xs:min-h-[110px] sm:min-h-[140px]
-                            ${spacingClass}
+                            w-full flex items-end overflow-x-auto overflow-y-visible no-scrollbar scroll-smooth touch-pan-x
+                            py-4 px-4 sm:px-8 min-h-[120px] sm:min-h-[155px]
+                            ${handCount <= 4 ? 'gap-2 sm:gap-3.5' : ''}
                           `}
                           style={{
                             justifyContent: handCount > 8 ? 'flex-start' : 'center',
@@ -2378,23 +2495,32 @@ export default function App() {
                           {sortedCards.map((card, idx) => {
                             const playable = isCardPlayable(card);
                             const isSelected = selectedCardId === card.id;
-                            const isDefendingCard =
-                              isMyTurn &&
-                              (gameState.pendingDrawCount || 0) > 0 &&
-                              (card.value === 'draw2' || card.value === 'wild_draw4');
+                            const isDefendingCard = isUnderAttack && isDefenseCard(card);
+                            
+                            // Controlled subtle fanning angle
                             const total = handCount || 1;
-                            const rot = (idx - (total - 1) / 2) * (total > 12 ? 0.7 : total > 7 ? 1.3 : 2.2);
+                            const rot = (idx - (total - 1) / 2) * (total > 12 ? 0.5 : total > 7 ? 0.9 : 1.3);
+
+                            // Dim unplayable cards when under attack to highlight defense counters
+                            const isDimmed = isUnderAttack && !isDefendingCard;
 
                             return (
                               <div
                                 key={card.id}
                                 className={`
-                                  transition-all duration-150 transform shrink-0 cursor-pointer
-                                  ${playable ? 'hover:-translate-y-4 hover:z-30 hover:scale-105 active:scale-95' : 'hover:-translate-y-2'}
-                                  ${isSelected ? '-translate-y-5 z-40 scale-105' : ''}
+                                  relative transition-all duration-200 transform shrink-0 select-none
+                                  ${isDefendingCard
+                                    ? '-translate-y-6 sm:-translate-y-7 z-30 scale-105 hover:-translate-y-8 hover:scale-110 hover:z-40 cursor-pointer'
+                                    : isDimmed
+                                    ? 'opacity-35 grayscale-[25%] pointer-events-none'
+                                    : playable
+                                    ? 'hover:-translate-y-5 hover:z-30 hover:scale-105 active:scale-95 cursor-pointer'
+                                    : 'opacity-75 hover:opacity-100 hover:-translate-y-2 cursor-pointer'}
+                                  ${isSelected ? '-translate-y-6 z-40 scale-105' : ''}
                                 `}
                                 style={{
                                   transformOrigin: 'bottom center',
+                                  marginLeft: idx > 0 && overlapPx > 0 ? `-${overlapPx}px` : undefined,
                                 }}
                                 onMouseEnter={() => setHoveredCard(card)}
                                 onMouseLeave={() => {
@@ -2416,6 +2542,14 @@ export default function App() {
                                   }
                                 }}
                               >
+                                {/* Defense Badge on counter cards when under attack */}
+                                {isDefendingCard && (
+                                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-40 whitespace-nowrap px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 text-white font-black text-[8px] sm:text-[9px] uppercase tracking-wider shadow-lg flex items-center gap-1 animate-bounce pointer-events-none">
+                                    <Zap className="w-2.5 h-2.5 fill-white" />
+                                    <span>DEFEND</span>
+                                  </div>
+                                )}
+
                                 <CardComponent
                                   card={card}
                                   isPlayable={playable}
@@ -2423,7 +2557,7 @@ export default function App() {
                                   size={handCardSize}
                                   rotation={rot}
                                   className={`
-                                    ${isDefendingCard ? 'ring-3 sm:ring-4 ring-rose-500 shadow-2xl shadow-rose-500/80 -translate-y-3 animate-pulse' : ''}
+                                    ${isDefendingCard ? 'ring-3 sm:ring-4 ring-amber-400 shadow-2xl shadow-amber-400/80 animate-pulse' : ''}
                                     ${playable && !isDefendingCard ? 'hover:ring-2 hover:ring-white/90' : ''}
                                   `}
                                 />
@@ -2455,7 +2589,7 @@ export default function App() {
                     <ReactionWheel onSendEmote={handleSendEmote} />
                   </div>
 
-                  {/* Hand Action Buttons */}
+                  {/* Hand Action Buttons: Consolidated single trigger (penalty action handled cleanly in defense banner) */}
                   <div className="flex items-center gap-1.5 sm:gap-2">
                     {isMyTurn && gameState.drawPendingForPlayer && (
                       <button
@@ -2466,19 +2600,12 @@ export default function App() {
                       </button>
                     )}
 
-                    {isMyTurn && !gameState.drawPendingForPlayer && (
+                    {isMyTurn && !gameState.drawPendingForPlayer && (!gameState.pendingDrawCount || gameState.pendingDrawCount === 0) && (
                       <button
                         onClick={handleDrawCard}
-                        className={`
-                          px-3.5 sm:px-4.5 py-1.5 rounded-xl font-bold text-[11px] sm:text-xs uppercase tracking-wider transition-all cursor-pointer
-                          ${gameState.pendingDrawCount && gameState.pendingDrawCount > 0
-                            ? 'bg-[#FF4600] text-white ring-2 ring-white/40 animate-pulse'
-                            : 'bg-[#FF4600] hover:bg-[#FF5500] text-white active:scale-95'}
-                        `}
+                        className="px-3.5 sm:px-4.5 py-1.5 rounded-xl font-bold text-[11px] sm:text-xs uppercase tracking-wider transition-all cursor-pointer bg-[#FF4600] hover:bg-[#FF5500] text-white active:scale-95 shadow-md shadow-[#FF4600]/30"
                       >
-                        {gameState.pendingDrawCount && gameState.pendingDrawCount > 0
-                          ? `Pick +${gameState.pendingDrawCount} Cards`
-                          : 'Draw 1 Card'}
+                        Draw 1 Card
                       </button>
                     )}
                   </div>
@@ -2597,6 +2724,7 @@ export default function App() {
           setWalletModalError(null);
         }}
         onSelectWallet={handleSelectWallet}
+        onSelectGuestWallet={handleSelectGuestWallet}
         connectingWalletId={connectingWalletId}
         error={walletModalError}
         onClearError={() => setWalletModalError(null)}
@@ -2607,12 +2735,13 @@ export default function App() {
         isOpen={isAirdropOpen}
         onClose={() => setIsAirdropOpen(false)}
         walletAddress={wallet.address}
+        hasAlreadyClaimed={hasClaimedAirdrop}
+        tokenBalance={tokenBalance}
         onClaimSuccess={(newBal) => {
           setTokenBalance(newBal);
           setIsAirdropEligible(false);
           setHasClaimedAirdrop(true);
           try {
-            localStorage.setItem('hemi_uno_airdrop_claimed', 'true');
             if (wallet.address) {
               localStorage.setItem(`hemi_uno_airdrop_claimed_${wallet.address.toLowerCase()}`, 'true');
             }

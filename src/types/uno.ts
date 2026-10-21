@@ -11,6 +11,24 @@ export interface Card {
   label: string;
 }
 
+/** Universal Crazy 8 wild check: Crazy 8 ('8') or Crazy Draw 4 ('wild_draw4') */
+export function isWildCard(card?: Card | null): boolean {
+  if (!card) return false;
+  return card.color === 'wild' || card.value === '8' || card.value === 'wild_draw4';
+}
+
+/** Attack defense / counter-stacking card (+2 or +4) */
+export function isDefenseCard(card?: Card | null): boolean {
+  if (!card) return false;
+  return card.value === 'draw2' || card.value === 'wild_draw4';
+}
+
+/** Action card with turn modifying rules */
+export function isActionCard(card?: Card | null): boolean {
+  if (!card) return false;
+  return card.value === 'skip' || card.value === 'reverse' || card.value === 'draw2' || card.value === 'wild_draw4';
+}
+
 export interface Player {
   id: string; // Persistent account / player ID
   socketId?: string; // Current active transport socket
@@ -162,10 +180,15 @@ export interface GameState {
 export interface UserGameStats {
   gamesPlayed: number;
   gamesWon: number;
+  gamesLost?: number;
   winStreak: number;
   bestWinStreak: number;
   totalEarningsEth: string;
   cardsPlayed: number;
+  totalWinnings?: string;
+  totalLosses?: string;
+  chipsEarned?: number;
+  chipsLost?: number;
 }
 
 export interface UserNotification {

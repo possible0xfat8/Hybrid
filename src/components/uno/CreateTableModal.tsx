@@ -47,10 +47,6 @@ export const CreateTableModal: React.FC<CreateTableModalProps> = ({
   const hasInsufficientTokens = selectedStakeNum > 0 && currentBalNum < selectedStakeNum;
 
   const handleCreate = () => {
-    if (!walletAddress) {
-      if (onConnectWallet) onConnectWallet();
-      return;
-    }
     if (hasInsufficientTokens) return;
     const buyInValue = selectedBuyIn === 'Free' ? '0' : selectedBuyIn;
     onCreateRoom(playerName, avatar, buyInValue, walletAddress);

@@ -106,7 +106,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose }) => {
                 />
               </div>
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                Next player draws 2 cards and skips their turn. If the next player has a Draw 2 card of their own, they can defend and stack it.
+                Next player must draw 2 cards and skip their turn, or defend with another +2 or Wild +4 to stack and pass the attack to the next player!
               </p>
             </div>
           </div>
@@ -114,18 +114,18 @@ export const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose }) => {
           {/* 5. Crazy Draw 4 */}
           <div className="space-y-2 pb-3.5 border-b border-white/[0.06]">
             <h5 className="font-bold text-sm text-white">
-              Crazy Draw 4
+              Wild Draw 4
             </h5>
             <div className="flex items-center gap-4">
               <div className="shrink-0 p-2 rounded-xl bg-white/[0.03] border border-white/[0.08] shadow-inner">
                 <CardComponent
-                  card={{ id: 'preview-draw4', color: 'wild', value: 'wild_draw4', label: 'Crazy Draw 4' }}
+                  card={{ id: 'preview-draw4', color: 'wild', value: 'wild_draw4', label: 'Wild +4' }}
                   size="sm"
                   isPlayable={false}
                 />
               </div>
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                Can be played on any card, allows changing color, and makes next player draw 4 cards unless countered with another Draw 4.
+                Can be played on any card and allows nominating a new active color. The next player must draw 4 cards and skip their turn, or defend with another +4 or +2 to counter-stack!
               </p>
             </div>
           </div>

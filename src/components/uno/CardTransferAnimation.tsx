@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Socket } from 'socket.io-client';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CardsDrawnEvent, CardPlayedEvent, Card, CardColor } from '@/types/uno';
+import { CardsDrawnEvent, CardPlayedEvent, Card, CardColor, isWildCard, isActionCard } from '@/types/uno';
 import { CardComponent } from './CardComponent';
 import { soundEngine } from '@/lib/uno/audio';
 
@@ -170,8 +170,8 @@ export const CardTransferAnimation: React.FC<CardTransferAnimationProps> = ({ so
         targetY = rect.top + rect.height / 2;
       }
 
-      const isWild = data.card.color === 'wild' || data.card.value === '8' || data.card.value === 'wild_draw4';
-      const isAction = ['skip', 'reverse', 'draw2', 'wild_draw4'].includes(data.card.value);
+      const isWild = isWildCard(data.card);
+      const isAction = isActionCard(data.card);
 
       const playItem: ActivePlayAnimation = {
         id: data.id,

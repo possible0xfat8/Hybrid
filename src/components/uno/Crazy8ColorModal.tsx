@@ -1,6 +1,5 @@
 import React from 'react';
 import { CardColor } from '@/types/uno';
-import { CardComponent } from './CardComponent';
 import { soundEngine } from '@/lib/uno/audio';
 
 interface Crazy8ColorModalProps {
@@ -38,62 +37,70 @@ export const Crazy8ColorModal: React.FC<Crazy8ColorModalProps> = ({
           </p>
         </div>
 
-        {/* 4-CARD COMPASS CROSS (Authentic GamePigeon Formation: Screenshot 3) */}
+        {/* 4-CARD COMPASS CROSS (Authentic Color Selection Formation) */}
         <div className="relative w-64 h-64 xs:w-72 xs:h-72 sm:w-80 sm:h-80 flex items-center justify-center my-2">
-          {/* TOP: RED 8 */}
+          {/* TOP: RED SUIT */}
           <div
             onClick={() => handleSelect('red')}
             className="absolute top-0 left-1/2 -translate-x-1/2 z-20 cursor-pointer transform transition-all duration-150 hover:scale-105 hover:z-30 active:scale-95"
             title="Nominate RED"
           >
-            <CardComponent
-              card={{ id: 'c8_red', color: 'red', value: '8', label: '8' }}
-              isPlayable
-              size="md"
-              className="ring-2 ring-white/60 shadow-xl shadow-black/80"
-            />
+            <div className="w-[68px] h-[102px] sm:w-[84px] sm:h-[126px] relative rounded-xl overflow-hidden select-none shrink-0 border-2 sm:border-[2.5px] border-white/95 shadow-xl shadow-red-950/80 bg-[#d32f2f] flex flex-col items-center justify-center ring-2 ring-red-400/80">
+              <div className="absolute inset-1 sm:inset-1.5 rounded-lg border border-white/80 pointer-events-none" />
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/20 border-2 border-white flex items-center justify-center shadow-lg">
+                <span className="font-['Montserrat','Arial_Black',sans-serif] font-black text-white text-[10px] sm:text-xs tracking-wider">
+                  RED
+                </span>
+              </div>
+            </div>
           </div>
 
-          {/* BOTTOM: BLUE 8 */}
+          {/* BOTTOM: BLUE SUIT */}
           <div
             onClick={() => handleSelect('blue')}
             className="absolute bottom-0 left-1/2 -translate-x-1/2 z-20 cursor-pointer transform transition-all duration-150 hover:scale-105 hover:z-30 active:scale-95"
             title="Nominate BLUE"
           >
-            <CardComponent
-              card={{ id: 'c8_blue', color: 'blue', value: '8', label: '8' }}
-              isPlayable
-              size="md"
-              className="ring-2 ring-white/60 shadow-xl shadow-black/80"
-            />
+            <div className="w-[68px] h-[102px] sm:w-[84px] sm:h-[126px] relative rounded-xl overflow-hidden select-none shrink-0 border-2 sm:border-[2.5px] border-white/95 shadow-xl shadow-blue-950/80 bg-[#1976d2] flex flex-col items-center justify-center ring-2 ring-blue-400/80">
+              <div className="absolute inset-1 sm:inset-1.5 rounded-lg border border-white/80 pointer-events-none" />
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/20 border-2 border-white flex items-center justify-center shadow-lg">
+                <span className="font-['Montserrat','Arial_Black',sans-serif] font-black text-white text-[10px] sm:text-xs tracking-wider">
+                  BLUE
+                </span>
+              </div>
+            </div>
           </div>
 
-          {/* LEFT: YELLOW 8 */}
+          {/* LEFT: YELLOW SUIT */}
           <div
             onClick={() => handleSelect('yellow')}
             className="absolute left-0 top-1/2 -translate-y-1/2 z-20 cursor-pointer transform transition-all duration-150 hover:scale-105 hover:z-30 active:scale-95"
             title="Nominate YELLOW"
           >
-            <CardComponent
-              card={{ id: 'c8_yellow', color: 'yellow', value: '8', label: '8' }}
-              isPlayable
-              size="md"
-              className="ring-2 ring-white/60 shadow-xl shadow-black/80"
-            />
+            <div className="w-[68px] h-[102px] sm:w-[84px] sm:h-[126px] relative rounded-xl overflow-hidden select-none shrink-0 border-2 sm:border-[2.5px] border-white/95 shadow-xl shadow-amber-950/80 bg-[#fbc02d] flex flex-col items-center justify-center ring-2 ring-yellow-400/80">
+              <div className="absolute inset-1 sm:inset-1.5 rounded-lg border border-black/30 pointer-events-none" />
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/20 border-2 border-black/60 flex items-center justify-center shadow-lg">
+                <span className="font-['Montserrat','Arial_Black',sans-serif] font-black text-slate-950 text-[9px] sm:text-[11px] tracking-wider">
+                  YELLOW
+                </span>
+              </div>
+            </div>
           </div>
 
-          {/* RIGHT: GREEN 8 */}
+          {/* RIGHT: GREEN SUIT */}
           <div
             onClick={() => handleSelect('green')}
             className="absolute right-0 top-1/2 -translate-y-1/2 z-20 cursor-pointer transform transition-all duration-150 hover:scale-105 hover:z-30 active:scale-95"
             title="Nominate GREEN"
           >
-            <CardComponent
-              card={{ id: 'c8_green', color: 'green', value: '8', label: '8' }}
-              isPlayable
-              size="md"
-              className="ring-2 ring-white/60 shadow-xl shadow-black/80"
-            />
+            <div className="w-[68px] h-[102px] sm:w-[84px] sm:h-[126px] relative rounded-xl overflow-hidden select-none shrink-0 border-2 sm:border-[2.5px] border-white/95 shadow-xl shadow-emerald-950/80 bg-[#388e3c] flex flex-col items-center justify-center ring-2 ring-emerald-400/80">
+              <div className="absolute inset-1 sm:inset-1.5 rounded-lg border border-white/80 pointer-events-none" />
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/20 border-2 border-white flex items-center justify-center shadow-lg">
+                <span className="font-['Montserrat','Arial_Black',sans-serif] font-black text-white text-[9px] sm:text-[11px] tracking-wider">
+                  GREEN
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 

@@ -32,7 +32,7 @@ export function useConnect4Stats(targetAddress?: string) {
     if (!address) return;
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:3001/api/connect4/stats/${address}`);
+      const res = await fetch(`/api/connect4/stats/${address}`);
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.stats) {

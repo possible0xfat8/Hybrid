@@ -32,37 +32,37 @@ export const CenterTable: React.FC<CenterTableProps> = ({
   pendingDrawCount = 0,
   isMobile: _isMobile = false,
 }) => {
-  // If top discard card is a Crazy 8 or Wild Draw 4, transform it into activeColor
-  const effectiveDiscardCard = (topDiscardCard && (topDiscardCard.value === '8' || topDiscardCard.value === 'wild_draw4') && activeColor)
-    ? {
-        ...topDiscardCard,
-        color: activeColor,
-        label: topDiscardCard.value === 'wild_draw4' ? `+4 ${activeColor.toUpperCase()}` : `${activeColor.toUpperCase()} 8`,
-      }
-    : topDiscardCard;
+  // The top discard card displays its authentic card face (Crazy 8 and Wild +4 stay universal rainbow).
+  // The active nominated color is clearly indicated by the SUIT badge directly below the discard pile.
+  const effectiveDiscardCard = topDiscardCard;
 
   return (
     <div className="relative flex flex-col items-center justify-center select-none shrink-0 pointer-events-auto">
-      {/* Banner Alert Banner (e.g. LAST CARD! or DEFENSE STACK) */}
-      {bannerAlert && (
-        <div className="absolute -top-10 sm:-top-12 z-40 w-full flex justify-center pointer-events-none animate-in zoom-in-75 duration-200">
-          <div className="px-3 sm:px-4 py-0.8 rounded-full bg-gradient-to-r from-amber-500 via-rose-600 to-purple-600 text-white font-black text-[9px] sm:text-xs tracking-wider uppercase shadow-2xl border border-white/60 flex items-center gap-1 animate-pulse max-w-[95%] truncate">
+      {/* 1. TOP NOTIFICATION / STACK ALERT ROW (Cleanly above cards with explicit static flow, no overlap) */}
+      <div className="min-h-[26px] flex items-center justify-center mb-1.5 z-20">
+        {pendingDrawCount > 0 ? (
+          <div className="px-3 py-0.5 rounded-full bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 border border-white/80 text-white font-black text-[9px] sm:text-[10px] tracking-wider uppercase flex items-center gap-1.5 shadow-xl shadow-red-600/50 animate-bounce">
+            <Flame className="w-3.5 h-3.5 text-yellow-300 fill-yellow-300 animate-pulse" />
+            <span>ATTACK STACK: +{pendingDrawCount}</span>
+          </div>
+        ) : bannerAlert ? (
+          <div className="px-3 py-0.5 rounded-full bg-gradient-to-r from-amber-500 via-rose-600 to-purple-600 text-white font-black text-[9px] sm:text-[10px] tracking-wider uppercase shadow-xl border border-white/60 flex items-center gap-1 animate-pulse">
             <span>⚡</span>
-            <span className="truncate">{bannerAlert.text}</span>
+            <span>{bannerAlert.text}</span>
             <span>⚡</span>
           </div>
-        </div>
-      )}
+        ) : null}
+      </div>
 
-      {/* CENTER CARDS (Directly on Red Felt: No Center Table, Matching Screenshot 2) */}
-      <div className="relative z-10 flex items-center justify-center gap-3 sm:gap-5">
-        {/* 1. DRAW PILE (GamePigeon Crazy 8 Deck) */}
+      {/* 2. ISOLATED CENTER ZONE: DRAW DECK & DISCARD PILE */}
+      <div className="relative z-10 flex items-center justify-center gap-4 sm:gap-6">
+        {/* Draw Pile (Deck) */}
         <div id="draw-deck-pile" className="relative flex flex-col items-center">
           <div
             className="relative cursor-pointer group select-none transition-transform active:scale-95"
             onClick={canDraw ? onDrawCard : undefined}
           >
-            {/* 3D Physical White Edge Thickness Stacks (Matching Screenshot 2 white card edge) */}
+            {/* 3D Physical White Edge Thickness Stacks */}
             <div className="absolute -bottom-1 -right-1 w-full h-full bg-white/90 rounded-xl pointer-events-none shadow-md" />
             <div className="absolute -bottom-2 -right-2 w-full h-full bg-slate-200 rounded-xl pointer-events-none shadow-lg" />
 
@@ -75,26 +75,21 @@ export const CenterTable: React.FC<CenterTableProps> = ({
               `}
             />
 
-            {/* Draw / Penalty Badge */}
-            {canDraw && isMyTurn && (
-              <div
-                className={`
-                  absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap px-2.5 py-0.5 text-[8px] sm:text-[10px] font-black rounded-full shadow-xl animate-bounce z-20
-                  ${pendingDrawCount > 0 ? 'bg-gradient-to-r from-red-600 to-amber-500 text-white border border-white ring-2 ring-red-500' : 'bg-amber-400 text-slate-950 font-extrabold border border-white'}
-                `}
-              >
-                {pendingDrawCount > 0 ? `+${pendingDrawCount}` : 'DRAW 1'}
+            {/* Draw 1 Pill if My Turn & can draw and not under attack */}
+            {canDraw && isMyTurn && pendingDrawCount === 0 && (
+              <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap px-2 py-0.2 text-[8px] sm:text-[9px] font-black rounded-full shadow-lg bg-amber-400 text-slate-950 border border-white animate-bounce z-20">
+                DRAW 1
               </div>
             )}
           </div>
 
-          {/* Deck Count */}
-          <div className="mt-1.5 text-[9px] sm:text-xs font-mono font-bold text-white/90 drop-shadow-md">
+          {/* Remaining Card Count Badge */}
+          <div className="mt-2 px-2.5 py-0.5 rounded-full bg-black/75 border border-white/15 text-[9px] sm:text-[10px] font-mono font-bold text-slate-300 shadow">
             {drawPileCount} cards
           </div>
         </div>
 
-        {/* 2. DISCARD PILE (Top Played Card) */}
+        {/* Discard Pile */}
         <div id="top-discard-card" className="relative flex flex-col items-center">
           {effectiveDiscardCard ? (
             <div className="relative">
@@ -110,19 +105,25 @@ export const CenterTable: React.FC<CenterTableProps> = ({
               />
             </div>
           ) : (
-            <div className="w-14 h-[88px] xs:w-15 xs:h-[95px] sm:w-18 sm:h-[114px] rounded-xl border-2 border-dashed border-white/30 flex items-center justify-center text-white/40 text-xs font-mono">
+            <div className="w-[56px] h-[84px] sm:w-[68px] sm:h-[102px] rounded-xl border-2 border-dashed border-white/30 flex items-center justify-center text-white/40 text-xs font-mono">
               EMPTY
             </div>
           )}
 
-          {/* Active Color Nomination Callout */}
+          {/* Active Color / Suit Indicator */}
           {activeColor && (
-            <div className="mt-1.5 px-2.5 py-0.5 rounded-full bg-black/80 border border-white/40 text-[8px] sm:text-[9px] font-black text-white uppercase tracking-wider shadow-md backdrop-blur-sm flex items-center gap-1">
+            <div className="mt-2 px-2.5 py-0.5 rounded-full bg-black/80 border border-white/25 text-[8px] sm:text-[9px] font-black text-white uppercase tracking-wider shadow backdrop-blur-sm flex items-center gap-1.5">
               <span
-                className="w-1.5 h-1.5 rounded-full animate-ping"
+                className="w-2 h-2 rounded-full animate-pulse shadow-sm shrink-0"
                 style={{
                   backgroundColor:
-                    activeColor === 'red' ? '#ef4444' : activeColor === 'blue' ? '#3b82f6' : activeColor === 'green' ? '#22c55e' : '#eab308',
+                    activeColor === 'red'
+                      ? '#ef4444'
+                      : activeColor === 'blue'
+                      ? '#3b82f6'
+                      : activeColor === 'green'
+                      ? '#22c55e'
+                      : '#eab308',
                 }}
               />
               <span>SUIT: {activeColor.toUpperCase()}</span>
@@ -131,18 +132,11 @@ export const CenterTable: React.FC<CenterTableProps> = ({
         </div>
       </div>
 
-      {/* Active Defense Stack Counter (+2 / +4 Stacking) */}
-      {pendingDrawCount > 0 && (
-        <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-30 px-3 py-0.5 rounded-full bg-red-600 border-2 border-white text-white font-black text-[9px] sm:text-xs flex items-center gap-1 shadow-2xl shadow-red-600/80 animate-bounce">
-          <Flame className="w-3 h-3 text-yellow-300 fill-yellow-300" />
-          <span>ATTACK STACK: +{pendingDrawCount}</span>
-        </div>
-      )}
-
-      {/* Escrow Pot Info Tag (Testnet Hemi) */}
+      {/* 3. POT BADGE ROW (Distinct row with dedicated margin, never colliding with sub-labels) */}
       {escrowPot && (
-        <div className="mt-1.5 px-2 py-0.5 rounded-md bg-black/80 border border-white/20 text-[8px] sm:text-[9px] font-mono font-bold text-amber-300 backdrop-blur-sm whitespace-nowrap">
-          POT: {escrowPot.amount} {escrowPot.currency}
+        <div className="mt-2 px-3 py-0.5 rounded-full bg-black/85 border border-amber-500/35 text-[9px] sm:text-[10px] font-mono font-bold text-amber-300 backdrop-blur-sm shadow-md flex items-center gap-1.5 z-10">
+          <span className="text-amber-400 font-black tracking-wider text-[8px] sm:text-[9px]">POT:</span>
+          <span>{escrowPot.amount} {escrowPot.currency}</span>
         </div>
       )}
     </div>

@@ -1,10 +1,17 @@
 import { io, Socket } from 'socket.io-client';
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_SOCKET_URL ||
-  (typeof window !== 'undefined'
-    ? window.location.origin
-    : 'http://localhost:3000');
+function getSocketBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const configured = process.env.NEXT_PUBLIC_SOCKET_URL;
+    if (!configured || configured.includes(':3001')) {
+      return window.location.origin;
+    }
+    return configured;
+  }
+  return process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000';
+}
+
+const BACKEND_URL = getSocketBaseUrl();
 
 // Isolated socket singletons
 let chessSocket: Socket | null = null;

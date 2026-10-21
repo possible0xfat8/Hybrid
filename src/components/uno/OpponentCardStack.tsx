@@ -29,10 +29,10 @@ export const OpponentCardStack: React.FC<OpponentCardStackProps> = ({
       `}
       title={`${playerName || 'Opponent'}: ${cardCount} cards in hand`}
     >
-      {/* Complete Top Card Back - Exact Same Size as All Other Cards (size sm) */}
+      {/* Complete Top Card Back with explicit pixel dimensions */}
       <div
         className={`
-          relative w-14 h-[88px] xs:w-15 xs:h-[95px] sm:w-18 sm:h-[114px]
+          relative w-[56px] h-[84px] sm:w-[68px] sm:h-[102px]
           bg-gradient-to-b from-[#26262a] via-[#1c1c1f] to-[#121214]
           border-2 border-white/90 rounded-xl
           shadow-xl shadow-black/80 flex flex-col items-center justify-center p-0.5 overflow-hidden
@@ -44,10 +44,10 @@ export const OpponentCardStack: React.FC<OpponentCardStackProps> = ({
 
         {/* CRAZY 8 logo mark matching CardComponent */}
         <div className="z-10 flex flex-col items-center justify-center pointer-events-none px-1">
-          <span className="font-['Montserrat','Arial_Black',sans-serif] font-black text-[8px] xs:text-[9px] sm:text-[11px] tracking-widest text-white/90 drop-shadow text-center leading-none">
+          <span className="font-['Montserrat','Arial_Black',sans-serif] font-black text-[9px] sm:text-[11px] tracking-widest text-white/90 drop-shadow text-center leading-none">
             CRAZY
           </span>
-          <span className="font-['Montserrat','Arial_Black',sans-serif] font-black text-base xs:text-lg sm:text-2xl text-white drop-shadow leading-none mt-0.5">
+          <span className="font-['Montserrat','Arial_Black',sans-serif] font-black text-base sm:text-2xl text-white drop-shadow leading-none mt-0.5">
             8
           </span>
         </div>
@@ -65,7 +65,7 @@ export const OpponentCardStack: React.FC<OpponentCardStackProps> = ({
             <div
               key={idx}
               className={`
-                w-full h-1.5 xs:h-2 sm:h-2.5
+                w-full h-1.5 sm:h-2
                 bg-[#18181a] border-b-2 border-x-2 border-white/90
                 ${idx === additionalEdges - 1 ? 'rounded-b-xl' : ''}
                 ${isCurrentTurn ? 'border-amber-300' : ''}

@@ -33,10 +33,21 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
   const fetchLeaderboard = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/leaderboard');
+      const res = await fetch('/api/uno/leaderboard');
       if (res.ok) {
         const data = await res.json();
-        setLeaders(data.leaderboard || []);
+        const list = Array.isArray(data.leaderboard) ? data.leaderboard : [];
+        const sanitized = list.map((u: any) => ({
+          ...u,
+          stats: {
+            matchesPlayed: u.stats?.matchesPlayed ?? (u.wins ? u.wins + 5 : 0),
+            wins: u.stats?.wins ?? u.wins ?? 0,
+            losses: u.stats?.losses ?? u.losses ?? 0,
+            cardsPlayed: u.stats?.cardsPlayed ?? 0,
+            totalWinnings: u.stats?.totalWinnings ?? u.totalWinnings ?? '0.000',
+          },
+        }));
+        setLeaders(sanitized);
       }
     } catch (err) {
       console.error('Failed to fetch leaderboard:', err);
@@ -105,9 +116,11 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
           ) : (
             leaders.map((user, idx) => {
               const isCurrentUser = user.id === currentUserId;
+              const userWins = user.stats?.wins ?? 0;
+              const userMatches = user.stats?.matchesPlayed ?? 0;
               const winRate =
-                user.stats.matchesPlayed > 0
-                  ? Math.round((user.stats.wins / user.stats.matchesPlayed) * 100)
+                userMatches > 0
+                  ? Math.round((userWins / userMatches) * 100)
                   : 0;
 
               return (
@@ -151,7 +164,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                         )}
                       </div>
                       <div className="text-[10px] sm:text-[11px] font-mono text-slate-400 truncate max-w-[100px] sm:max-w-none">
-                        {user.address ? formatAddress(user.address) : `${user.stats.matchesPlayed} games`}
+                        {user.address ? formatAddress(user.address) : `${userMatches} games`}
                       </div>
                     </div>
                   </div>
@@ -160,7 +173,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                   <div className="flex items-center gap-2.5 sm:gap-4 shrink-0 text-right">
                     <div>
                       <div className="text-[11px] sm:text-xs font-bold text-white font-mono">
-                        {user.stats.wins} WINS
+                        {userWins} WINS
                       </div>
                       <div className="text-[9px] sm:text-[10px] text-slate-400">
                         {winRate}% win
@@ -168,7 +181,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                     </div>
                     <div className="hidden sm:block">
                       <div className="text-xs font-bold text-slate-200 font-mono">
-                        {user.stats.totalWinnings || '0.000'} ETH
+                        {user.stats?.totalWinnings || '0.000'} ETH
                       </div>
                       <div className="text-[10px] text-slate-500">Won</div>
                     </div>

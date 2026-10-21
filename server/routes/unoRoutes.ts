@@ -114,8 +114,34 @@ export function createUnoRoutes(roomManager: RoomManager): Router {
 
   router.get('/token/balance/:address', async (req: Request, res: Response) => {
     const { address } = req.params;
-    const data = await fetchOnChainBalance(address);
-    res.json(data);
+    const cleanAddr = address?.trim().toLowerCase();
+    if (!cleanAddr) {
+      return res.json({ balance: '0', hasClaimed: false, eligible: false });
+    }
+
+    const serverUser = serverDb.getUserByAddress(cleanAddr) || serverDb.getUser(`wallet_${cleanAddr}`);
+    const data = await fetchOnChainBalance(cleanAddr);
+
+    // Wallet has claimed if on-chain marks it claimed or serverDb recorded an airdrop grant
+    const hasClaimed = Boolean(
+      data.hasClaimed ||
+      serverUser?.hasClaimedAirdrop ||
+      serverUser?.notifications?.some((n) => n.type === 'airdrop_claimed')
+    );
+
+    let balance = data.balance;
+    if ((!balance || balance === '0' || balance === '0.0') && serverUser && typeof serverUser.tokenBalance === 'number') {
+      balance = serverUser.tokenBalance.toString();
+    }
+
+    const eligible = !hasClaimed;
+
+    res.json({
+      address: cleanAddr,
+      balance: balance || '0',
+      hasClaimed,
+      eligible,
+    });
   });
 
   router.post('/token/airdrop', async (req: Request, res: Response) => {
@@ -124,35 +150,67 @@ export function createUnoRoutes(roomManager: RoomManager): Router {
       return res.status(400).json({ success: false, error: 'Wallet address required' });
     }
 
+    const cleanAddr = address.trim().toLowerCase();
+    const serverUser = serverDb.getUserByAddress(cleanAddr) || serverDb.getUser(`wallet_${cleanAddr}`);
+    const onChainData = await fetchOnChainBalance(cleanAddr);
+
+    // CRITICAL: Block old wallets that have already claimed!
+    if (
+      onChainData.hasClaimed ||
+      serverUser?.hasClaimedAirdrop ||
+      serverUser?.notifications?.some((n) => n.type === 'airdrop_claimed')
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'This wallet has already claimed the 10,000 $CRAZY8 welcome airdrop.',
+        hasClaimed: true,
+      });
+    }
+
     try {
-      const result = await dispenseAirdrop(address);
+      const result = await dispenseAirdrop(cleanAddr);
       if (result.success) {
+        const newBal = (serverUser?.tokenBalance || 0) + 10000;
         serverDb.upsertUser({
-          id: `wallet_${address.toLowerCase()}`,
-          address: address.toLowerCase(),
-          tokenBalance: 10000,
+          id: `wallet_${cleanAddr}`,
+          address: cleanAddr,
+          tokenBalance: newBal,
+          hasClaimedAirdrop: true,
         });
-        serverDb.addNotification(`wallet_${address.toLowerCase()}`, {
+        serverDb.addNotification(`wallet_${cleanAddr}`, {
           type: 'airdrop_claimed',
           title: '🎁 Welcome Airdrop Received!',
           message: '10,000 $CRAZY8 tokens credited to your Hemi Sepolia wallet.',
           txHash: result.txHash,
           amount: '10000',
         });
-        return res.json(result);
+        return res.json({
+          ...result,
+          hasClaimed: true,
+          balance: newBal.toString(),
+        });
       }
     } catch {}
 
     // Fallback in-memory grant if testnet RPC is busy
+    const newBal = (serverUser?.tokenBalance || 0) + 10000;
     serverDb.upsertUser({
-      id: `wallet_${address.toLowerCase()}`,
-      address: address.toLowerCase(),
-      tokenBalance: 10000,
+      id: `wallet_${cleanAddr}`,
+      address: cleanAddr,
+      tokenBalance: newBal,
+      hasClaimedAirdrop: true,
+    });
+    serverDb.addNotification(`wallet_${cleanAddr}`, {
+      type: 'airdrop_claimed',
+      title: '🎁 Welcome Airdrop Received!',
+      message: '10,000 $CRAZY8 tokens credited for Hemi Arcade play.',
+      amount: '10000',
     });
     res.json({
       success: true,
       amount: '10000',
-      balance: '10000',
+      balance: newBal.toString(),
+      hasClaimed: true,
       message: '10,000 $CRAZY8 credited for Hemi Arcade play!',
     });
   });
@@ -198,8 +256,10 @@ export function createUnoRoutes(roomManager: RoomManager): Router {
     });
   });
 
-  router.get('/leaderboard', (_req: Request, res: Response) => {
-    const users = serverDb.getLeaderboard(10);
+  router.get('/leaderboard', (req: Request, res: Response) => {
+    const sortBy = (req.query.sort as 'chips' | 'wins') || 'chips';
+    const limit = parseInt(req.query.limit as string, 10) || 15;
+    const users = serverDb.getLeaderboard(limit, sortBy);
     res.json({ leaderboard: users });
   });
 
