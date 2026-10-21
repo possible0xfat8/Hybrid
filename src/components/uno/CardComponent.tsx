@@ -116,10 +116,10 @@ export const CardComponent: React.FC<CardProps> = ({
   const isSkip = card.value === 'skip';
   const isReverse = card.value === 'reverse';
 
-  // Universal Rainbow Rule:
-  // All Crazy 8s (value '8'), Wild cards, and Wild Draw 4s ('wild_draw4') are ALWAYS RAINBOW!
-  // They are universal wild cards and MUST NEVER render as a solid suit color.
-  const isCrazyRainbow = isWildCard(card);
+  // Rainbow rendering rule:
+  // Crazy 8 and Wild Draw 4 cards display as the full 7-color rainbow ONLY when unnominated (color: 'wild').
+  // Once played with a nominated color (red, blue, green, yellow), they display with that nominated color!
+  const isCrazyRainbow = card.color === 'wild';
   const colorMeta = isCrazyRainbow ? CRAZY8_COLORS.wild : (CRAZY8_COLORS[card.color] || CRAZY8_COLORS.wild);
   const isYellow = card.color === 'yellow' && !isCrazyRainbow;
 

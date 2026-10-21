@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, CardColor, BannerAlert, EscrowPotInfo } from '../types';
+import { Card, CardColor, BannerAlert, EscrowPotInfo, isWildCard } from '../types';
 import { CardComponent } from './CardComponent';
 import { Flame } from 'lucide-react';
 
@@ -32,9 +32,13 @@ export const CenterTable: React.FC<CenterTableProps> = ({
   pendingDrawCount = 0,
   isMobile: _isMobile = false,
 }) => {
-  // The top discard card displays its authentic card face (Crazy 8 and Wild +4 stay universal rainbow).
-  // The active nominated color is clearly indicated by the SUIT badge directly below the discard pile.
-  const effectiveDiscardCard = topDiscardCard;
+  // The top discard card reflects the nominated suit color when a Crazy 8 or Wild Draw 4 is played
+  const effectiveDiscardCard = (topDiscardCard && isWildCard(topDiscardCard) && activeColor)
+    ? {
+        ...topDiscardCard,
+        color: activeColor,
+      }
+    : topDiscardCard;
 
   return (
     <div className="relative flex flex-col items-center justify-center select-none shrink-0 pointer-events-auto">

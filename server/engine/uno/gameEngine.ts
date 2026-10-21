@@ -563,14 +563,14 @@ export class GameRoom {
     curPlayer.hand.splice(cardIndex, 1);
     curPlayer.cardCount = curPlayer.hand.length;
 
-    // Physical card remains universal rainbow wild (color: 'wild')
-    const playedCard: Card = isWild
+    // When a wild card is played, the played card on the discard pile reflects the nominated color
+    const playedCard: Card = (isWild && chosenColor)
       ? {
           ...card,
-          color: 'wild',
+          color: chosenColor,
           label: card.value === 'wild_draw4'
-            ? `Crazy Draw 4 (${chosenColor?.toUpperCase() || ''})`
-            : `Crazy 8 (${chosenColor?.toUpperCase() || ''})`,
+            ? `Crazy Draw 4 (${chosenColor.toUpperCase()})`
+            : `Crazy 8 (${chosenColor.toUpperCase()})`,
         }
       : card;
 

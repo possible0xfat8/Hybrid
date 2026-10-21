@@ -342,7 +342,11 @@ export const CardTransferAnimation: React.FC<CardTransferAnimationProps> = ({ so
             : play.targetY + (play.startY - play.targetY) * 0.35 - 35;
           // Guarantee it never enters the top header region (y >= 130)
           const midY = Math.max(130, rawMidY);
-          const theme = COLOR_THEME[play.card.color] || COLOR_THEME.wild;
+          // If played card was a wild card and had a chosenColor nominated, display with that chosen color
+          const displayCard = (play.chosenColor && isWildCard(play.card))
+            ? { ...play.card, color: play.chosenColor }
+            : play.card;
+          const theme = COLOR_THEME[displayCard.color] || COLOR_THEME.wild;
 
           return (
             <React.Fragment key={play.id}>
@@ -406,7 +410,7 @@ export const CardTransferAnimation: React.FC<CardTransferAnimationProps> = ({ so
                 className="will-change-transform z-50 filter drop-shadow-[0_16px_32px_rgba(0,0,0,0.85)]"
               >
                 <CardComponent
-                  card={play.card}
+                  card={displayCard}
                   size="sm"
                   isPlayable={false}
                   className="shadow-2xl ring-2 ring-white/80"
@@ -430,7 +434,7 @@ export const CardTransferAnimation: React.FC<CardTransferAnimationProps> = ({ so
                 }}
                 className={`
                   w-28 h-28 rounded-full pointer-events-none z-40
-                  ${play.isWild ? 'bg-purple-500/50 ring-4 ring-purple-300' : play.isAction ? 'bg-amber-400/50 ring-4 ring-amber-300' : 'bg-blue-400/40 ring-2 ring-blue-300'}
+                  ${displayCard.color === 'red' ? 'bg-red-500/50 ring-4 ring-red-300' : displayCard.color === 'blue' ? 'bg-blue-500/50 ring-4 ring-blue-300' : displayCard.color === 'green' ? 'bg-emerald-500/50 ring-4 ring-emerald-300' : displayCard.color === 'yellow' ? 'bg-amber-500/50 ring-4 ring-amber-300' : play.isWild ? 'bg-purple-500/50 ring-4 ring-purple-300' : play.isAction ? 'bg-amber-400/50 ring-4 ring-amber-300' : 'bg-blue-400/40 ring-2 ring-blue-300'}
                 `}
               />
             </React.Fragment>
