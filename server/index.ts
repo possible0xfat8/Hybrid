@@ -8,39 +8,50 @@ import next from 'next';
 import { Server } from 'socket.io';
 import cors from 'cors';
 
-// Ensure all project files are linked to / so platform build/publish runners can find package.json
+// Ensure all project files are mirrored to / so platform build/publish runners can find package.json
 let rootLinkStatus = 'init';
 try {
-  const appletDir = '/app/applet';
-  if (fs.existsSync(appletDir)) {
-    const entries = fs.readdirSync(appletDir);
+  const currentDir = process.cwd();
+  console.log(`[LINK-ROOT] Current working directory: ${currentDir}`);
+
+  if (currentDir !== '/') {
+    const systemDirs = new Set([
+      'app', 'bin', 'boot', 'dev', 'etc', 'home', 'lib', 'lib64',
+      'media', 'mnt', 'opt', 'proc', 'root', 'run', 'sbin', 'srv',
+      'sys', 'tmp', 'usr', 'var', 'workspace'
+    ]);
+
+    const entries = fs.readdirSync(currentDir);
     for (const entry of entries) {
+      if (systemDirs.has(entry)) continue;
+
       const rootPath = path.join('/', entry);
-      const appletPath = path.join(appletDir, entry);
-      if (!fs.existsSync(rootPath)) {
+      const sourcePath = path.join(currentDir, entry);
+
+      try {
+        // Remove any stale or broken link/file at rootPath first
         try {
-          fs.symlinkSync(appletPath, rootPath);
-          console.log(`[LINK-ROOT] Symlinked ${entry} -> ${rootPath}`);
-        } catch (e: any) {
-          // If symlink fails, try copying files
-          try {
-            const stat = fs.statSync(appletPath);
-            if (stat.isFile()) {
-              fs.copyFileSync(appletPath, rootPath);
-              console.log(`[LINK-ROOT] Copied ${entry} -> ${rootPath}`);
-            }
-          } catch (copyErr: any) {
-            console.warn(`[LINK-ROOT] Link/copy failed for ${entry}:`, copyErr.message);
-          }
+          fs.rmSync(rootPath, { force: true, recursive: true });
+        } catch {}
+
+        const stat = fs.statSync(sourcePath);
+        if (stat.isDirectory()) {
+          fs.symlinkSync(sourcePath, rootPath, 'dir');
+          console.log(`[LINK-ROOT] Symlinked directory: ${entry} -> ${rootPath}`);
+        } else {
+          fs.copyFileSync(sourcePath, rootPath);
+          console.log(`[LINK-ROOT] Copied file: ${entry} -> ${rootPath}`);
         }
+      } catch (e: any) {
+        console.warn(`[LINK-ROOT] Failed for ${entry}:`, e.message);
       }
     }
-    rootLinkStatus = fs.existsSync('/package.json') ? 'package_json_exists' : 'package_json_missing';
-    console.log(`[LINK-ROOT] Root link status: ${rootLinkStatus}`);
   }
+  rootLinkStatus = fs.existsSync('/package.json') ? 'package_json_exists' : 'package_json_missing';
+  console.log(`[LINK-ROOT] Root mirror status: ${rootLinkStatus}`);
 } catch (err: any) {
   rootLinkStatus = `error: ${err.message}`;
-  console.warn('[LINK-ROOT] Could not inspect /app/applet:', err.message);
+  console.warn('[LINK-ROOT] Could not mirror directory:', err.message);
 }
 
 import { ChessEngine } from './engine/chess/chessEngine';
@@ -63,16 +74,9 @@ const dev = process.env.NODE_ENV !== 'production';
 const nextApp = next({ dev, hostname: '0.0.0.0', port: PORT });
 const handle = nextApp.getRequestHandler();
 
-let nextReady = false;
-console.log('[NEXT] Initializing Next.js in background...');
-nextApp.prepare()
-  .then(() => {
-    nextReady = true;
-    console.log('[NEXT] ✓ Next.js prepared and ready to serve pages');
-  })
-  .catch((err) => {
-    console.error('[NEXT] Error preparing Next.js:', err);
-  });
+console.log('[NEXT] Preparing Next.js application...');
+await nextApp.prepare();
+console.log('[NEXT] ✓ Next.js prepared and ready to serve pages');
 
 const app = express();
 const server = http.createServer(app);
@@ -129,9 +133,10 @@ app.use('/api', createUnoRoutes(roomManager));
 app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
-    nextReady,
+    cwd: process.cwd(),
     rootLinkStatus,
     packageJsonAtRoot: fs.existsSync('/package.json'),
+    packageJsonAtCwd: fs.existsSync(path.join(process.cwd(), 'package.json')),
     platform: 'Hemi Arcade Unified Server',
     namespaces: ['/chess', '/uno', '/connect4'],
     activeChessGames: chessEngine.activeGames.size,
@@ -144,30 +149,6 @@ app.get('/health', (_req, res) => {
 // 5. NEXT.JS PAGES HANDLER
 // ==========================================
 app.all(/.*/, (req, res) => {
-  if (!nextReady) {
-    res.setHeader('Retry-After', '1');
-    res.status(200).send(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Hemi Arcade</title>
-  <meta http-equiv="refresh" content="1">
-  <style>
-    body { background: #08090C; color: #FF4600; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-    .spinner { width: 36px; height: 36px; border: 3px solid rgba(255, 70, 0, 0.2); border-top-color: #FF4600; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    h2 { font-weight: 800; font-size: 20px; letter-spacing: -0.5px; margin: 0 0 6px 0; color: #fff; }
-    p { font-size: 13px; color: #94a3b8; margin: 0; }
-  </style>
-</head>
-<body>
-  <div class="spinner"></div>
-  <h2>HEMI <span style="color:#FF4600;">ARCADE</span></h2>
-  <p>Booting game engine and dashboard...</p>
-</body>
-</html>`);
-    return;
-  }
   const parsedUrl = parse(req.url!, true);
   handle(req, res, parsedUrl);
 });
