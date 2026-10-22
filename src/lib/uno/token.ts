@@ -26,6 +26,10 @@ export async function fetchTokenBalance(address: string): Promise<{
   try {
     const res = await fetch(`/api/token/balance/${encodeURIComponent(address.trim())}`);
     if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      throw new Error(`Non-JSON response from server (${res.status})`);
+    }
     const data = await res.json();
     const hasClaimed = Boolean(data.hasClaimed);
     const eligible = data.eligible !== undefined ? Boolean(data.eligible) : !hasClaimed;
@@ -54,6 +58,14 @@ export async function claimWelcomeAirdrop(address: string): Promise<{
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ address: address.trim() }),
     });
+
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await res.text().catch(() => '');
+      throw new Error(
+        `Server returned status ${res.status}. ${text.slice(0, 80) || 'Check server connection.'}`
+      );
+    }
 
     const data = await res.json();
     if (!res.ok || !data.success) {

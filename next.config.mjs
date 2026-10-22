@@ -36,13 +36,21 @@ const nextConfig = {
     return config;
   },
   async rewrites() {
-    const backendUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${backendUrl}/api/:path*`,
-      },
-    ];
+    const backendUrl = process.env.NEXT_PUBLIC_SOCKET_URL?.trim();
+    if (
+      backendUrl &&
+      backendUrl.startsWith('http') &&
+      !backendUrl.includes('localhost') &&
+      !backendUrl.includes('127.0.0.1')
+    ) {
+      return [
+        {
+          source: '/api/external/:path*',
+          destination: `${backendUrl}/api/:path*`,
+        },
+      ];
+    }
+    return [];
   },
 };
 
