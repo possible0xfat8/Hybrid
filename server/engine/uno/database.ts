@@ -100,7 +100,6 @@ export class ServerDatabase {
   private saveDebounceTimer: NodeJS.Timeout | null = null;
 
   constructor() {
-    this.seedDefaultUsers();
     this.initLocalDisk();
     this.initSupabaseSync();
   }
@@ -213,46 +212,7 @@ export class ServerDatabase {
   }
 
   private seedDefaultUsers() {
-    const defaultUsers = [
-      { id: 'whale_1', name: 'ApexWhale', avatar: '💎', tag: 'ApexWhale#0001', chips: 185000, wins: 112, losses: 18, earned: '165000', lost: '15000', bio: 'Hemi High Roller #1' },
-      { id: 'whale_2', name: 'ApeKing', avatar: '🦁', tag: 'ApeKing#0002', chips: 142500, wins: 88, losses: 21, earned: '128000', lost: '22000', bio: 'Crazy 8 Pot Collector' },
-      { id: 'whale_3', name: 'SatoshiShark', avatar: '🦈', tag: 'SatoshiShark#0003', chips: 98000, wins: 64, losses: 16, earned: '85000', lost: '14000', bio: 'High Stakes Player' },
-      { id: 'bot_host_stck', name: 'NeoDash', avatar: '🤖', tag: 'NeoDash#0004', chips: 67500, wins: 45, losses: 15, earned: '58000', lost: '12000', bio: 'Bot Buster & Card Shark' },
-      { id: 'bot_host_team', name: 'FoxCardist', avatar: '🦊', tag: 'FoxCardist#0005', chips: 51200, wins: 39, losses: 19, earned: '44000', lost: '18000', bio: 'Fast Draw Specialist' },
-      { id: 'bot_host_clsc', name: 'LumiBear', avatar: '🐻', tag: 'LumiBear#0006', chips: 38000, wins: 28, losses: 14, earned: '32000', lost: '11000', bio: 'Hemi Arcade Resident Challenger' },
-      { id: 'bot_host_fast', name: 'Tobz', avatar: '🐱', tag: 'Tobz#0007', chips: 26400, wins: 21, losses: 11, earned: '24000', lost: '8000', bio: 'Speed Player' },
-      { id: 'whale_4', name: 'DragonAce', avatar: '🐉', tag: 'DragonAce#0008', chips: 19500, wins: 17, losses: 9, earned: '18000', lost: '7500', bio: 'Wild 8 Enthusiast' },
-    ];
-
-    for (const u of defaultUsers) {
-      if (!this.data.users[u.id]) {
-        this.data.users[u.id] = {
-          id: u.id,
-          tag: u.tag,
-          name: u.name,
-          avatar: u.avatar,
-          bio: u.bio,
-          status: 'online',
-          lastSeen: Date.now(),
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          stats: {
-            matchesPlayed: u.wins + u.losses,
-            wins: u.wins,
-            losses: u.losses,
-            cardsPlayed: (u.wins + u.losses) * 7,
-            totalWinnings: u.earned,
-            totalLosses: u.lost,
-          },
-          tokenBalance: u.chips,
-          friends: [],
-          friendRequestsSent: [],
-          friendRequestsReceived: [],
-          recentOpponents: [],
-          notifications: [],
-        };
-      }
-    }
+    // Production/clean mode: No mock users seeded
   }
 
   public resolveUserRecord(idOrAddress: string): UserProfileRecord | null {

@@ -314,11 +314,7 @@ export async function getChessMatchHistory(walletAddress: string, limit = 10): P
 export async function getChessLeaderboard(limit = 15): Promise<ChessLeaderboardEntry[]> {
   const client = getChessSupabaseClient();
   if (!client) {
-    return [
-      { rank: 1, address: '0x8e8e39D67D227E0a8B10095e07EA020D53926df3', name: 'GrandMasterChad', elo: 2140, wins: 142 },
-      { rank: 2, address: '0x71C8A3f892d194514781440079C6F6F94732bE5A', name: 'DeepHemiCheck', elo: 1985, wins: 98 },
-      { rank: 3, address: '0x12Fa87Bc1128EAf42c9535091Cd5866f809938b8', name: 'NeoKnight', elo: 1840, wins: 76 },
-    ];
+    return [];
   }
 
   try {
@@ -329,12 +325,7 @@ export async function getChessLeaderboard(limit = 15): Promise<ChessLeaderboardE
       .limit(limit);
 
     if (error || !data || data.length === 0) {
-      console.warn('[Supabase:CHESS] Leaderboard fetch fallback:', error?.message);
-      return [
-        { rank: 1, address: '0x8e8e39D67D227E0a8B10095e07EA020D53926df3', name: 'GrandMasterChad', elo: 2140, wins: 142 },
-        { rank: 2, address: '0x71C8A3f892d194514781440079C6F6F94732bE5A', name: 'DeepHemiCheck', elo: 1985, wins: 98 },
-        { rank: 3, address: '0x12Fa87Bc1128EAf42c9535091Cd5866f809938b8', name: 'NeoKnight', elo: 1840, wins: 76 },
-      ];
+      return [];
     }
 
     return data.map((p: any, idx: number) => {

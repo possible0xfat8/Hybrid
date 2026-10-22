@@ -1,24 +1,45 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Users, Coins, Flame, Clock } from 'lucide-react';
 
 export function StatsCounter() {
+  const [liveStats, setLiveStats] = useState({
+    totalMatches: 0,
+    activePlayers: 0,
+    prizeVolume: 'Live Escrow',
+  });
+
+  useEffect(() => {
+    fetch('/api/arcade/stats')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.totals) {
+          setLiveStats({
+            totalMatches: data.totals.totalGamesPlayed || 0,
+            activePlayers: data.totals.activePlayers || 0,
+            prizeVolume: data.totals.prizeVolume || 'Live Escrow',
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const stats = [
     {
       label: 'Total Matches Played',
-      value: '3,480+',
-      change: '+14% this week',
+      value: liveStats.totalMatches.toLocaleString(),
+      change: 'Real-time On-Chain',
       icon: Flame,
       color: 'text-[#FF4600]',
       border: 'border-[#FF4600]/30',
       bg: 'bg-[#FF4600]/5',
     },
     {
-      label: 'Prize Volume Distributed',
-      value: '52,800+',
-      currency: '$CRAZY8 / ETH',
+      label: 'Prize Volume',
+      value: liveStats.prizeVolume,
+      currency: '',
       change: '100% Non-custodial',
       icon: Coins,
       color: 'text-amber-400',
@@ -27,8 +48,8 @@ export function StatsCounter() {
     },
     {
       label: 'Live Online Players',
-      value: '24',
-      change: 'Hemi Testnet Peers',
+      value: liveStats.activePlayers.toString(),
+      change: 'Active Socket Peers',
       icon: Users,
       color: 'text-[#FF4600]',
       border: 'border-[#FF4600]/30',
@@ -59,26 +80,26 @@ export function StatsCounter() {
               className={`p-5 rounded-2xl bg-obsidian-900 border ${s.border} ${s.bg} relative overflow-hidden`}
             >
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold text-slate-400 tracking-wide uppercase">
+                <span className="text-xs font-mono text-slate-400 uppercase tracking-wider">
                   {s.label}
                 </span>
-                <div className={`p-2 rounded-xl bg-black/40 ${s.color}`}>
+                <div className={`p-2 rounded-xl bg-white/5 ${s.color}`}>
                   <Icon className="w-4 h-4" />
                 </div>
               </div>
 
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              <div className="flex items-baseline gap-2 mb-1">
+                <span className="text-2xl sm:text-3xl font-black text-white font-mono tracking-tight">
                   {s.value}
                 </span>
                 {s.currency && (
-                  <span className="text-[11px] font-mono text-[#FF4600] font-bold">
+                  <span className="text-xs font-bold text-slate-400">
                     {s.currency}
                   </span>
                 )}
               </div>
 
-              <div className="mt-2 text-[11px] text-slate-400 font-mono">
+              <div className="text-[11px] font-mono text-slate-500">
                 {s.change}
               </div>
             </motion.div>

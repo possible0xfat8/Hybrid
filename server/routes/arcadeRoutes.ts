@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { ChessEngine } from '../engine/chess/chessEngine';
 import { RoomManager } from '../engine/uno/roomManager';
-import { getChessLeaderboard } from '../services/chess/supabaseChess';
+import { getChessSupabaseClient, getChessLeaderboard } from '../services/chess/supabaseChess';
 import { serverDb } from '../engine/uno/database';
 
 export function createArcadeRoutes(chessEngine: ChessEngine, roomManager: RoomManager): Router {
@@ -11,7 +11,7 @@ export function createArcadeRoutes(chessEngine: ChessEngine, roomManager: RoomMa
     res.json({ status: 'ok', uptime: process.uptime(), timestamp: new Date().toISOString() });
   });
 
-  router.get('/stats', (_req: Request, res: Response) => {
+  router.get('/stats', async (_req: Request, res: Response) => {
     const chessActiveGames = chessEngine.activeGames.size;
     const chessWaitingQueue = chessEngine.matchmakingQueue.length;
     const chessConnectedPlayers = chessEngine.playerSockets.size;
@@ -20,6 +20,18 @@ export function createArcadeRoutes(chessEngine: ChessEngine, roomManager: RoomMa
     const unoActiveTables = unoPublicRooms.filter((r) => r.status === 'playing').length;
     const unoTotalPlayers = unoPublicRooms.reduce((acc, r) => acc + r.playerCount, 0);
 
+    let totalMatches = chessActiveGames + unoActiveTables;
+    try {
+      const client = getChessSupabaseClient();
+      if (client) {
+        const [gh, ch] = await Promise.all([
+          client.from('game_history').select('id', { count: 'exact', head: true }),
+          client.from('crazy8_match_history').select('id', { count: 'exact', head: true }),
+        ]);
+        totalMatches += (gh.count || 0) + (ch.count || 0);
+      }
+    } catch {}
+
     res.json({
       success: true,
       platform: 'Hemi Arcade',
@@ -27,8 +39,8 @@ export function createArcadeRoutes(chessEngine: ChessEngine, roomManager: RoomMa
       totals: {
         activePlayers: chessConnectedPlayers + unoTotalPlayers,
         activeMatches: chessActiveGames + unoActiveTables,
-        totalGamesPlayed: 3480 + chessActiveGames + unoActiveTables,
-        prizeVolume: '52,800+ $CRAZY8 / ETH',
+        totalGamesPlayed: totalMatches,
+        prizeVolume: 'Live On-Chain Escrow',
       },
       games: {
         chess: {

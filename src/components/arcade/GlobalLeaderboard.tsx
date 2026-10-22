@@ -18,73 +18,20 @@ interface LeaderboardEntry {
 
 export function GlobalLeaderboard() {
   const [activeTab, setActiveTab] = useState<'all' | 'chess' | 'uno'>('all');
-  const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([
-    {
-      rank: 1,
-      address: '0x8e8e39D67D227E0a8B10095e07EA020D53926df3',
-      name: 'GrandMasterChad',
-      game: 'both',
-      score: '2,140 ELO / 18,200 $CRAZY8',
-      metricLabel: 'Dual Champion',
-      wins: 142,
-      winRate: '78.4%',
-      avatar: '👑',
-    },
-    {
-      rank: 2,
-      address: '0x71C8A3f892d194514781440079C6F6F94732bE5A',
-      name: 'DeepHemiCheck',
-      game: 'chess',
-      score: '1,985 ELO',
-      metricLabel: 'Chess Rating',
-      wins: 98,
-      winRate: '72.1%',
-      avatar: '♟️',
-    },
-    {
-      rank: 3,
-      address: '0x438A20Fa0e176378A58908869b76E1B73cFe37b1',
-      name: 'WildCardSavant',
-      game: 'uno',
-      score: '12,500 $CRAZY8',
-      metricLabel: 'Tokens Won',
-      wins: 84,
-      winRate: '68.9%',
-      avatar: '🃏',
-    },
-    {
-      rank: 4,
-      address: '0x12Fa87Bc1128EAf42c9535091Cd5866f809938b8',
-      name: 'NeoKnight',
-      game: 'chess',
-      score: '1,840 ELO',
-      metricLabel: 'Chess Rating',
-      wins: 76,
-      winRate: '64.5%',
-      avatar: '🐴',
-    },
-    {
-      rank: 5,
-      address: '0x995dB176cf92490A5bc184b2F1253049F867490A',
-      name: 'ColorShifter',
-      game: 'uno',
-      score: '9,800 $CRAZY8',
-      metricLabel: 'Tokens Won',
-      wins: 62,
-      winRate: '61.2%',
-      avatar: '🌈',
-    },
-  ]);
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    setIsLoading(true);
     fetch('/api/arcade/leaderboard')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data && Array.isArray(data.leaderboard) && data.leaderboard.length > 0) {
+        if (data && Array.isArray(data.leaderboard)) {
           setLeaderboardData(data.leaderboard);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setIsLoading(false));
   }, []);
 
   const filteredData = leaderboardData.filter((entry) => {
@@ -159,7 +106,25 @@ export function GlobalLeaderboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {filteredData.map((player) => {
+              {isLoading && (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                    <span className="text-xs font-mono animate-pulse">Loading live arcade leaderboard...</span>
+                  </td>
+                </tr>
+              )}
+              {!isLoading && filteredData.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Trophy className="w-8 h-8 text-slate-500 opacity-40" />
+                      <span className="font-medium text-slate-300">No ranked matches recorded yet</span>
+                      <span className="text-xs text-slate-500">Play a match of Chess, Crazy 8, or Connect 4 to claim the #1 spot!</span>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {!isLoading && filteredData.map((player) => {
                 const isGold = player.rank === 1;
                 const isSilver = player.rank === 2;
                 const isBronze = player.rank === 3;
