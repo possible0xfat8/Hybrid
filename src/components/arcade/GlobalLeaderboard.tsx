@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, Medal, Crown, Swords, Layers, ArrowUpRight, Flame } from 'lucide-react';
 
@@ -18,8 +18,7 @@ interface LeaderboardEntry {
 
 export function GlobalLeaderboard() {
   const [activeTab, setActiveTab] = useState<'all' | 'chess' | 'uno'>('all');
-
-  const leaderboardData: LeaderboardEntry[] = [
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([
     {
       rank: 1,
       address: '0x8e8e39D67D227E0a8B10095e07EA020D53926df3',
@@ -75,7 +74,18 @@ export function GlobalLeaderboard() {
       winRate: '61.2%',
       avatar: '🌈',
     },
-  ];
+  ]);
+
+  useEffect(() => {
+    fetch('/api/arcade/leaderboard')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.leaderboard) && data.leaderboard.length > 0) {
+          setLeaderboardData(data.leaderboard);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const filteredData = leaderboardData.filter((entry) => {
     if (activeTab === 'all') return true;

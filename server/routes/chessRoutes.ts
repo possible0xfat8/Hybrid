@@ -1,6 +1,15 @@
 import { Router, Request, Response } from 'express';
 import { ChessEngine } from '../engine/chess/chessEngine';
 import { isSettlementEnabled, getOracleAddress, readEloBalance } from '../services/chess/matchSettlement';
+import {
+  getChessPlayerStats,
+  getChessMatchHistory,
+  getChessLeaderboard,
+  getChessFriends,
+  getChessNotifications,
+  upsertChessPlayer,
+  updateChessUserStatus,
+} from '../services/chess/supabaseChess';
 
 export function createChessRoutes(engine: ChessEngine): Router {
   const router = Router();
@@ -28,13 +37,11 @@ export function createChessRoutes(engine: ChessEngine): Router {
     res.json({ games });
   });
 
-  router.get('/leaderboard', async (_req: Request, res: Response) => {
-    const sampleLeaderboard = [
-      { rank: 1, address: '0x8e8e39D67D227E0a8B10095e07EA020D53926df3', name: 'GrandMasterChad', elo: 2140, wins: 142 },
-      { rank: 2, address: '0x71C8A3f892d194514781440079C6F6F94732bE5A', name: 'DeepHemiCheck', elo: 1985, wins: 98 },
-      { rank: 3, address: '0x12Fa87Bc1128EAf42c9535091Cd5866f809938b8', name: 'NeoKnight', elo: 1840, wins: 76 },
-    ];
-    res.json({ leaderboard: sampleLeaderboard });
+  // Authoritative ELO leaderboard from Supabase
+  router.get('/leaderboard', async (req: Request, res: Response) => {
+    const limit = parseInt(req.query.limit as string, 10) || 20;
+    const leaderboard = await getChessLeaderboard(limit);
+    res.json({ leaderboard });
   });
 
   router.get('/balance/:address', async (req: Request, res: Response) => {
@@ -43,73 +50,34 @@ export function createChessRoutes(engine: ChessEngine): Router {
     res.json({ address, balance: balance.toString() });
   });
 
-  // User Stats & Match History (for Hemi-Chess UI hooks)
-  router.get('/users/:address/stats', (req: Request, res: Response) => {
+  // User Stats from Supabase
+  router.get('/users/:address/stats', async (req: Request, res: Response) => {
     const { address } = req.params;
     const cleanAddr = address ? address.toLowerCase() : '';
-    res.json({
-      elo_rating: 1200,
-      wins: 14,
-      losses: 5,
-      draws: 2,
-      total_games: 21,
-      win_rate: 66.7,
-      username: `Player_${cleanAddr.slice(2, 6)}`,
-      wallet_address: cleanAddr,
-      is_online: true,
-    });
+    const stats = await getChessPlayerStats(cleanAddr);
+    res.json(stats);
   });
 
-  router.get('/users/:address/history', (req: Request, res: Response) => {
+  // User Match History from Supabase
+  router.get('/users/:address/history', async (req: Request, res: Response) => {
     const { address } = req.params;
     const cleanAddr = address ? address.toLowerCase() : '';
-    res.json([
-      {
-        game_id: `g_${Date.now()}_1`,
-        outcome: 'W',
-        my_color: 'white',
-        elo_before: 1184,
-        elo_after: 1200,
-        elo_change: 16,
-        completed_at: new Date(Date.now() - 3600000).toISOString(),
-      },
-      {
-        game_id: `g_${Date.now()}_2`,
-        outcome: 'W',
-        my_color: 'black',
-        elo_before: 1168,
-        elo_after: 1184,
-        elo_change: 16,
-        completed_at: new Date(Date.now() - 7200000).toISOString(),
-      },
-      {
-        game_id: `g_${Date.now()}_3`,
-        outcome: 'L',
-        my_color: 'white',
-        elo_before: 1182,
-        elo_after: 1168,
-        elo_change: -14,
-        completed_at: new Date(Date.now() - 10800000).toISOString(),
-      },
-      {
-        game_id: `g_${Date.now()}_4`,
-        outcome: 'W',
-        my_color: 'black',
-        elo_before: 1166,
-        elo_after: 1182,
-        elo_change: 16,
-        completed_at: new Date(Date.now() - 14400000).toISOString(),
-      },
-    ]);
+    const limit = parseInt(req.query.limit as string, 10) || 15;
+    const history = await getChessMatchHistory(cleanAddr, limit);
+    res.json(history);
   });
 
   // Notifications API (Hemi Chess)
-  router.get('/notifications/:userId', (_req: Request, res: Response) => {
-    res.json([]);
+  router.get('/notifications/:userId', async (req: Request, res: Response) => {
+    const { userId } = req.params;
+    const notifications = await getChessNotifications(userId);
+    res.json(notifications);
   });
 
-  router.get('/notifications/:userId/count', (_req: Request, res: Response) => {
-    res.json({ count: 0 });
+  router.get('/notifications/:userId/count', async (req: Request, res: Response) => {
+    const { userId } = req.params;
+    const notifications = await getChessNotifications(userId);
+    res.json({ count: notifications.length });
   });
 
   router.post('/notifications/:notificationId/read', (_req: Request, res: Response) => {
@@ -125,33 +93,56 @@ export function createChessRoutes(engine: ChessEngine): Router {
   });
 
   // Online & User Status (Hemi Chess)
-  router.get('/user/:address/status', (_req: Request, res: Response) => {
-    res.json({ online: true, is_online: true });
+  router.get('/user/:address/status', (req: Request, res: Response) => {
+    const { address } = req.params;
+    const cleanAddr = address ? address.toLowerCase() : '';
+    const isOnline = Array.from(engine.playerSockets.values()).some(
+      (p) => p.walletAddress === cleanAddr
+    );
+    res.json({ online: isOnline, is_online: isOnline });
   });
 
-  router.post('/user/status', (_req: Request, res: Response) => {
+  router.post('/user/status', async (req: Request, res: Response) => {
+    const { address, isOnline } = req.body;
+    if (address) {
+      await updateChessUserStatus(address, Boolean(isOnline));
+    }
     res.json({ success: true });
   });
 
   router.get('/users/online', (_req: Request, res: Response) => {
-    res.json({ count: engine.playerSockets.size || 6, users: [] });
+    res.json({ count: Math.max(engine.playerSockets.size, 1), users: [] });
   });
 
   router.get('/users/count', (_req: Request, res: Response) => {
     res.json({ count: 184 });
   });
 
-  router.post('/users/sync', (_req: Request, res: Response) => {
+  router.post('/users/sync', async (req: Request, res: Response) => {
+    const { wallet_address, address, username } = req.body;
+    const targetAddr = wallet_address || address;
+    if (targetAddr) {
+      const player = await upsertChessPlayer(targetAddr, username);
+      return res.json({ success: true, player });
+    }
     res.json({ success: true });
   });
 
   router.get('/games/live', (_req: Request, res: Response) => {
-    res.json({ success: true, games: [] });
+    const games = Array.from(engine.activeGames.values()).map((g) => ({
+      gameId: g.gameId,
+      status: g.status,
+      white: g.players.white.playerName,
+      black: g.players.black.playerName,
+    }));
+    res.json({ success: true, games });
   });
 
   // Friends & Challenges
-  router.get('/friends/:address', (_req: Request, res: Response) => {
-    res.json([]);
+  router.get('/friends/:address', async (req: Request, res: Response) => {
+    const { address } = req.params;
+    const friends = await getChessFriends(address);
+    res.json(friends);
   });
 
   router.get('/players/search', (_req: Request, res: Response) => {
@@ -180,4 +171,3 @@ export function createChessRoutes(engine: ChessEngine): Router {
 
   return router;
 }
-

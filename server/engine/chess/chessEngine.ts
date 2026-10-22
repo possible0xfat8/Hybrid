@@ -1,6 +1,7 @@
 import { Chess } from 'chess.js';
 import { Namespace, Socket } from 'socket.io';
 import { settleMatch, isSettlementEnabled } from '../../services/chess/matchSettlement';
+import { recordChessMatchResult } from '../../services/chess/supabaseChess';
 
 export interface PlayerSession {
   id: string;
@@ -342,6 +343,27 @@ export class ChessEngine {
       reason,
       finalFen: instance.game.fen(),
     });
+
+    // Record game to Supabase game_history and update player stats
+    try {
+      const whiteAddr = instance.players.white.walletAddress || instance.players.white.id;
+      const blackAddr = instance.players.black.walletAddress || instance.players.black.id;
+      const totalMoves = instance.game.history().length;
+      const gameDuration = Math.round((Date.now() - instance.startTime) / 1000);
+
+      await recordChessMatchResult({
+        gameId: instance.gameId,
+        whiteAddress: whiteAddr,
+        blackAddress: blackAddr,
+        winner,
+        reason,
+        totalMoves,
+        gameDuration,
+        finalFen: instance.game.fen(),
+      });
+    } catch (dbErr: any) {
+      console.warn('[CHESS:ENGINE] Error recording match to Supabase:', dbErr.message);
+    }
 
     // Trigger on-chain settlement oracle
     if (isSettlementEnabled()) {

@@ -1,3 +1,20 @@
+import fs from 'fs';
+import path from 'path';
+import {
+  isUnoSupabaseConfigured,
+  loadInitialDataFromSupabase,
+  syncProfileToSupabase,
+  syncPresenceToSupabase,
+  syncFriendRelationshipToSupabase,
+  removeFriendRelationshipFromSupabase,
+  syncFriendRequestToSupabase,
+  removeFriendRequestFromSupabase,
+  syncRecentOpponentsToSupabase,
+  syncRecentRoomToSupabase,
+  syncMatchHistoryToSupabase,
+  fetchUnoLeaderboardFromSupabase,
+} from '../../services/uno/supabaseUno';
+
 export interface UserStats {
   matchesPlayed: number;
   wins: number;
@@ -72,14 +89,127 @@ export interface DatabaseSchema {
   >;
 }
 
+const DB_DIR = path.join(process.cwd(), 'data');
+const DB_FILE = path.join(DB_DIR, 'uno_db.json');
+
 export class ServerDatabase {
   private data: DatabaseSchema = {
     users: {},
     recentRooms: {},
   };
+  private saveDebounceTimer: NodeJS.Timeout | null = null;
 
   constructor() {
     this.seedDefaultUsers();
+    this.initLocalDisk();
+    this.initSupabaseSync();
+  }
+
+  private initLocalDisk(): void {
+    try {
+      if (!fs.existsSync(DB_DIR)) {
+        fs.mkdirSync(DB_DIR, { recursive: true });
+      }
+
+      if (fs.existsSync(DB_FILE)) {
+        const raw = fs.readFileSync(DB_FILE, 'utf-8');
+        if (raw.trim()) {
+          const parsed = JSON.parse(raw);
+          const rawUsers: Record<string, UserProfileRecord> = parsed.users || {};
+          for (const [id, user] of Object.entries(rawUsers)) {
+            if (!this.data.users[id]) {
+              this.data.users[id] = user;
+            } else {
+              this.data.users[id] = { ...this.data.users[id], ...user };
+            }
+          }
+          if (parsed.recentRooms) {
+            this.data.recentRooms = { ...this.data.recentRooms, ...parsed.recentRooms };
+          }
+          console.log(`[Database:UNO] Loaded ${Object.keys(this.data.users).length} profiles from local disk cache.`);
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Database:UNO] Warning reading local disk cache:', err.message);
+    }
+  }
+
+  private async initSupabaseSync(): Promise<void> {
+    if (!isUnoSupabaseConfigured()) return;
+
+    try {
+      const remoteData = await loadInitialDataFromSupabase();
+      if (!remoteData) return;
+
+      let remoteLoaded = 0;
+      for (const [id, remoteUser] of Object.entries(remoteData.users)) {
+        const localUser = this.data.users[id];
+        if (!localUser) {
+          this.data.users[id] = remoteUser;
+          remoteLoaded++;
+        } else {
+          // Merge remote stats with local
+          if (remoteUser.updatedAt > localUser.updatedAt) {
+            this.data.users[id] = {
+              ...localUser,
+              ...remoteUser,
+              tokenBalance: typeof localUser.tokenBalance === 'number' ? localUser.tokenBalance : remoteUser.tokenBalance,
+              notifications: localUser.notifications || remoteUser.notifications || [],
+              stats: {
+                matchesPlayed: Math.max(localUser.stats.matchesPlayed || 0, remoteUser.stats?.matchesPlayed || 0),
+                wins: Math.max(localUser.stats.wins || 0, remoteUser.stats?.wins || 0),
+                cardsPlayed: Math.max(localUser.stats.cardsPlayed || 0, remoteUser.stats?.cardsPlayed || 0),
+                totalWinnings:
+                  parseFloat(remoteUser.stats?.totalWinnings || '0') > parseFloat(localUser.stats?.totalWinnings || '0')
+                    ? remoteUser.stats.totalWinnings
+                    : localUser.stats.totalWinnings,
+              },
+              friends: Array.from(new Set([...(localUser.friends || []), ...(remoteUser.friends || [])])),
+              friendRequestsSent: Array.from(new Set([...(localUser.friendRequestsSent || []), ...(remoteUser.friendRequestsSent || [])])),
+              friendRequestsReceived: Array.from(new Set([...(localUser.friendRequestsReceived || []), ...(remoteUser.friendRequestsReceived || [])])),
+            };
+          }
+        }
+      }
+
+      for (const [code, room] of Object.entries(remoteData.recentRooms)) {
+        if (!this.data.recentRooms[code]) {
+          this.data.recentRooms[code] = room;
+        }
+      }
+
+      this.saveSync();
+      console.log(`[Supabase:UNO] ✓ Synchronized with remote database (${remoteLoaded} new records).`);
+
+      // Push default seed profiles to Supabase if not yet present
+      for (const localUser of Object.values(this.data.users)) {
+        if (!remoteData.users[localUser.id]) {
+          syncProfileToSupabase(localUser);
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Supabase:UNO] Initial sync warning:', err.message);
+    }
+  }
+
+  public saveSync(): void {
+    try {
+      if (!fs.existsSync(DB_DIR)) {
+        fs.mkdirSync(DB_DIR, { recursive: true });
+      }
+      fs.writeFileSync(DB_FILE, JSON.stringify(this.data, null, 2), 'utf-8');
+    } catch (err: any) {
+      console.warn('[Database:UNO] Error saving database synchronously:', err.message);
+    }
+  }
+
+  public save(): void {
+    if (this.saveDebounceTimer) {
+      clearTimeout(this.saveDebounceTimer);
+    }
+    this.saveDebounceTimer = setTimeout(() => {
+      this.saveSync();
+    }, 500);
   }
 
   private seedDefaultUsers() {
@@ -158,6 +288,7 @@ export class ServerDatabase {
 
     user.tokenBalance -= amount;
     user.updatedAt = Date.now();
+    this.save();
     return true;
   }
 
@@ -168,6 +299,7 @@ export class ServerDatabase {
 
     user.tokenBalance += amount;
     user.updatedAt = Date.now();
+    this.save();
     return user.tokenBalance;
   }
 
@@ -238,6 +370,8 @@ export class ServerDatabase {
         existing.address = cleanAddress;
         this.data.users[canonicalId] = existing;
       }
+      syncProfileToSupabase(existing);
+      this.save();
       return existing;
     }
 
@@ -276,6 +410,8 @@ export class ServerDatabase {
     }
 
     this.data.users[canonicalId] = newUser;
+    syncProfileToSupabase(newUser);
+    this.save();
     return newUser;
   }
 
@@ -327,6 +463,8 @@ export class ServerDatabase {
     };
 
     this.data.users[id] = newUser;
+    syncProfileToSupabase(newUser);
+    this.save();
     return newUser;
   }
 
@@ -369,6 +507,8 @@ export class ServerDatabase {
 
     user.updatedAt = Date.now();
     user.lastSeen = Date.now();
+    syncProfileToSupabase(user);
+    this.save();
     return user;
   }
 
@@ -378,6 +518,7 @@ export class ServerDatabase {
     user.status = status;
     user.currentRoomCode = roomCode !== undefined ? roomCode : user.currentRoomCode;
     user.lastSeen = Date.now();
+    syncPresenceToSupabase(user.id, status, user.currentRoomCode);
   }
 
   public touchUserPresence(id: string, roomCode?: string | null): void {
@@ -390,6 +531,7 @@ export class ServerDatabase {
     } else if (user.status === 'offline') {
       user.status = 'online';
     }
+    syncPresenceToSupabase(user.id, user.status, user.currentRoomCode);
   }
 
   public getEnrichedFriends(userId: string): EnrichedFriend[] {
@@ -449,6 +591,8 @@ export class ServerDatabase {
     if (!targetUser.friendRequestsReceived.includes(fromUserId)) {
       targetUser.friendRequestsReceived.push(fromUserId);
     }
+    syncFriendRequestToSupabase(fromUserId, targetUser.id, 'pending');
+    this.save();
     return { success: true, friend: targetUser };
   }
 
@@ -466,6 +610,9 @@ export class ServerDatabase {
     if (!user.friends.includes(requesterId)) user.friends.push(requesterId);
     if (!requester.friends.includes(userId)) requester.friends.push(userId);
 
+    syncFriendRelationshipToSupabase(userId, requesterId);
+    removeFriendRequestFromSupabase(requesterId, userId);
+    this.save();
     return { success: true, friend: requester };
   }
 
@@ -475,6 +622,9 @@ export class ServerDatabase {
 
     if (user) user.friendRequestsReceived = user.friendRequestsReceived.filter(id => id !== requesterId);
     if (requester) requester.friendRequestsSent = requester.friendRequestsSent.filter(id => id !== userId);
+
+    removeFriendRequestFromSupabase(requesterId, userId);
+    this.save();
     return { success: true };
   }
 
@@ -484,6 +634,9 @@ export class ServerDatabase {
 
     if (user) user.friends = user.friends.filter(id => id !== friendId);
     if (friend) friend.friends = friend.friends.filter(id => id !== userId);
+
+    removeFriendRelationshipFromSupabase(userId, friendId);
+    this.save();
     return { success: true };
   }
 
@@ -531,7 +684,14 @@ export class ServerDatabase {
         }
       }
       user.recentOpponents = user.recentOpponents.slice(0, 10);
+      syncProfileToSupabase(user);
+      syncRecentOpponentsToSupabase(user.id, otherPlayers.map(o => o.id));
     }
+
+    if (roomCode) {
+      syncMatchHistoryToSupabase(roomCode, winnerId, playerIds, potAmount, cardsMap);
+    }
+    this.save();
   }
 
   public getSuggestedPlayers(excludeUserId: string): UserProfileRecord[] {
@@ -552,7 +712,6 @@ export class ServerDatabase {
         if (sortBy === 'wins') {
           return (b.stats?.wins || 0) - (a.stats?.wins || 0) || (b.tokenBalance || 0) - (a.tokenBalance || 0);
         }
-        // Default sort by Chip Wealth (Richest players topping the ranks)
         const aChips = typeof a.tokenBalance === 'number' ? a.tokenBalance : 10000;
         const bChips = typeof b.tokenBalance === 'number' ? b.tokenBalance : 10000;
         return bChips - aChips || (b.stats?.wins || 0) - (a.stats?.wins || 0);
@@ -569,6 +728,8 @@ export class ServerDatabase {
       createdAt: Date.now(),
       status: info.status,
     };
+    syncRecentRoomToSupabase(roomCode, info);
+    this.save();
   }
 
   public addNotification(
@@ -602,6 +763,7 @@ export class ServerDatabase {
 
     user.notifications.unshift(newNotif);
     user.notifications = user.notifications.slice(0, 20);
+    this.save();
     return newNotif;
   }
 
@@ -630,6 +792,8 @@ export class ServerDatabase {
     };
 
     this.data.users[user.id] = updated;
+    syncProfileToSupabase(updated);
+    this.save();
     return updated;
   }
 
