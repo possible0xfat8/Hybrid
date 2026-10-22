@@ -1,4 +1,238 @@
 {
-  "users": {},
-  "recentRooms": {}
+  "users": {
+    "whale_1": {
+      "id": "whale_1",
+      "tag": "ApexWhale#0001",
+      "name": "ApexWhale",
+      "avatar": "💎",
+      "bio": "Hemi High Roller #1",
+      "status": "online",
+      "lastSeen": 1792689000000,
+      "createdAt": 1792689000000,
+      "updatedAt": 1792689000000,
+      "stats": {
+        "matchesPlayed": 130,
+        "wins": 112,
+        "losses": 18,
+        "cardsPlayed": 910,
+        "totalWinnings": "165000",
+        "totalLosses": "15000"
+      },
+      "tokenBalance": 185000,
+      "friends": [],
+      "friendRequestsSent": [],
+      "friendRequestsReceived": [],
+      "recentOpponents": [],
+      "notifications": []
+    },
+    "whale_2": {
+      "id": "whale_2",
+      "tag": "ApeKing#0002",
+      "name": "ApeKing",
+      "avatar": "🦁",
+      "bio": "Crazy 8 Pot Collector",
+      "status": "online",
+      "lastSeen": 1792689000000,
+      "createdAt": 1792689000000,
+      "updatedAt": 1792689000000,
+      "stats": {
+        "matchesPlayed": 109,
+        "wins": 88,
+        "losses": 21,
+        "cardsPlayed": 763,
+        "totalWinnings": "128000",
+        "totalLosses": "22000"
+      },
+      "tokenBalance": 142500,
+      "friends": [],
+      "friendRequestsSent": [],
+      "friendRequestsReceived": [],
+      "recentOpponents": [],
+      "notifications": []
+    },
+    "whale_3": {
+      "id": "whale_3",
+      "tag": "SatoshiShark#0003",
+      "name": "SatoshiShark",
+      "avatar": "🦈",
+      "bio": "High Stakes Player",
+      "status": "online",
+      "lastSeen": 1792689000000,
+      "createdAt": 1792689000000,
+      "updatedAt": 1792689000000,
+      "stats": {
+        "matchesPlayed": 80,
+        "wins": 64,
+        "losses": 16,
+        "cardsPlayed": 560,
+        "totalWinnings": "85000",
+        "totalLosses": "14000"
+      },
+      "tokenBalance": 98000,
+      "friends": [],
+      "friendRequestsSent": [],
+      "friendRequestsReceived": [],
+      "recentOpponents": [],
+      "notifications": []
+    },
+    "bot_host_stck": {
+      "id": "bot_host_stck",
+      "tag": "NeoDash#0004",
+      "name": "NeoDash",
+      "avatar": "🤖",
+      "bio": "Bot Buster & Card Shark",
+      "status": "online",
+      "lastSeen": 1792689000000,
+      "createdAt": 1792689000000,
+      "updatedAt": 1792689000000,
+      "stats": {
+        "matchesPlayed": 60,
+        "wins": 45,
+        "losses": 15,
+        "cardsPlayed": 420,
+        "totalWinnings": "58000",
+        "totalLosses": "12000"
+      },
+      "tokenBalance": 67500,
+      "friends": [],
+      "friendRequestsSent": [],
+      "friendRequestsReceived": [],
+      "recentOpponents": [],
+      "notifications": []
+    },
+    "bot_host_team": {
+      "id": "bot_host_team",
+      "tag": "FoxCardist#0005",
+      "name": "FoxCardist",
+      "avatar": "🦊",
+      "bio": "Fast Draw Specialist",
+      "status": "online",
+      "lastSeen": 1792689000000,
+      "createdAt": 1792689000000,
+      "updatedAt": 1792689000000,
+      "stats": {
+        "matchesPlayed": 58,
+        "wins": 39,
+        "losses": 19,
+        "cardsPlayed": 406,
+        "totalWinnings": "44000",
+        "totalLosses": "18000"
+      },
+      "tokenBalance": 51200,
+      "friends": [],
+      "friendRequestsSent": [],
+      "friendRequestsReceived": [],
+      "recentOpponents": [],
+      "notifications": []
+    },
+    "bot_host_clsc": {
+      "id": "bot_host_clsc",
+      "tag": "LumiBear#0006",
+      "name": "LumiBear",
+      "avatar": "🐻",
+      "bio": "Hemi Arcade Resident Challenger",
+      "status": "online",
+      "lastSeen": 1792689000000,
+      "createdAt": 1792689000000,
+      "updatedAt": 1792689000000,
+      "stats": {
+        "matchesPlayed": 42,
+        "wins": 28,
+        "losses": 14,
+        "cardsPlayed": 294,
+        "totalWinnings": "32000",
+        "totalLosses": "11000"
+      },
+      "tokenBalance": 38000,
+      "friends": [],
+      "friendRequestsSent": [],
+      "friendRequestsReceived": [],
+      "recentOpponents": [],
+      "notifications": []
+    },
+    "bot_host_fast": {
+      "id": "bot_host_fast",
+      "tag": "Tobz#0007",
+      "name": "Tobz",
+      "avatar": "🐱",
+      "bio": "Speed Player",
+      "status": "online",
+      "lastSeen": 1792689000000,
+      "createdAt": 1792689000000,
+      "updatedAt": 1792689000000,
+      "stats": {
+        "matchesPlayed": 32,
+        "wins": 21,
+        "losses": 11,
+        "cardsPlayed": 224,
+        "totalWinnings": "24000",
+        "totalLosses": "8000"
+      },
+      "tokenBalance": 26400,
+      "friends": [],
+      "friendRequestsSent": [],
+      "friendRequestsReceived": [],
+      "recentOpponents": [],
+      "notifications": []
+    },
+    "whale_4": {
+      "id": "whale_4",
+      "tag": "DragonAce#0008",
+      "name": "DragonAce",
+      "avatar": "🐉",
+      "bio": "Wild 8 Enthusiast",
+      "status": "online",
+      "lastSeen": 1792689000000,
+      "createdAt": 1792689000000,
+      "updatedAt": 1792689000000,
+      "stats": {
+        "matchesPlayed": 26,
+        "wins": 17,
+        "losses": 9,
+        "cardsPlayed": 182,
+        "totalWinnings": "18000",
+        "totalLosses": "7500"
+      },
+      "tokenBalance": 19500,
+      "friends": [],
+      "friendRequestsSent": [],
+      "friendRequestsReceived": [],
+      "recentOpponents": [],
+      "notifications": []
+    }
+  },
+  "recentRooms": {
+    "CLSC": {
+      "roomCode": "CLSC",
+      "hostName": "LumiBear",
+      "hostAvatar": "🐻",
+      "buyIn": "0.000",
+      "status": "lobby",
+      "createdAt": 1792689000000
+    },
+    "STCK": {
+      "roomCode": "STCK",
+      "hostName": "NeoDash",
+      "hostAvatar": "🤖",
+      "buyIn": "0.000",
+      "status": "lobby",
+      "createdAt": 1792689000000
+    },
+    "TEAM": {
+      "roomCode": "TEAM",
+      "hostName": "Zyro",
+      "hostAvatar": "🦊",
+      "buyIn": "0.000",
+      "status": "lobby",
+      "createdAt": 1792689000000
+    },
+    "FAST": {
+      "roomCode": "FAST",
+      "hostName": "Tobz",
+      "hostAvatar": "🐱",
+      "buyIn": "0.000",
+      "status": "lobby",
+      "createdAt": 1792689000000
+    }
+  }
 }

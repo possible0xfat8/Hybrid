@@ -36,7 +36,11 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
       const res = await fetch('/api/uno/leaderboard');
       if (res.ok) {
         const data = await res.json();
-        const list = Array.isArray(data.leaderboard) ? data.leaderboard : [];
+        const list = Array.isArray(data.leaderboard)
+          ? data.leaderboard
+          : Array.isArray(data)
+          ? data
+          : [];
         const sanitized = list.map((u: any) => ({
           ...u,
           stats: {

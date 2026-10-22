@@ -60,10 +60,19 @@ export const Crazy8RichLeaderboard: React.FC<Crazy8RichLeaderboardProps> = ({
       const res = await fetch(`/api/uno/leaderboard?sort=${sort}&limit=12`);
       if (res.ok) {
         const data = await res.json();
-        const list = Array.isArray(data.leaderboard) ? data.leaderboard : [];
+        const rawList = Array.isArray(data.leaderboard)
+          ? data.leaderboard
+          : Array.isArray(data)
+          ? data
+          : [];
+
         // Ensure every entry has safe stats defaults
-        const sanitized = list.map((u: any) => ({
+        let sanitized = rawList.map((u: any) => ({
           ...u,
+          tokenBalance:
+            typeof u.tokenBalance === 'number'
+              ? u.tokenBalance
+              : parseFloat(u.tokenBalance) || 10000,
           stats: {
             matchesPlayed: u.stats?.matchesPlayed ?? (u.wins ? u.wins + 5 : 0),
             wins: u.stats?.wins ?? u.wins ?? 0,
@@ -73,6 +82,62 @@ export const Crazy8RichLeaderboard: React.FC<Crazy8RichLeaderboardProps> = ({
             totalLosses: u.stats?.totalLosses ?? u.totalLosses ?? '0',
           },
         }));
+
+        // If current user is connected, guarantee they appear in the leaderboard with their live chips & wins
+        if (currentUserAddress || currentUserId) {
+          const userIdx = sanitized.findIndex(
+            (u: any) =>
+              (currentUserAddress &&
+                u.address &&
+                u.address.toLowerCase() === currentUserAddress.toLowerCase()) ||
+              (currentUserId && u.id === currentUserId)
+          );
+
+          const liveChips = parseFloat(currentUserChips) || 10000;
+          const liveWins = currentUserWins || 0;
+
+          if (userIdx !== -1) {
+            sanitized[userIdx] = {
+              ...sanitized[userIdx],
+              tokenBalance: Math.max(sanitized[userIdx].tokenBalance || 0, liveChips),
+              wins: Math.max(sanitized[userIdx].wins || 0, liveWins),
+              stats: {
+                ...sanitized[userIdx].stats,
+                wins: Math.max(sanitized[userIdx].stats?.wins || 0, liveWins),
+                totalWinnings: sanitized[userIdx].stats?.totalWinnings || `${liveChips}`,
+              },
+            };
+          } else {
+            const cleanAddr = currentUserAddress ? currentUserAddress.toLowerCase() : '';
+            sanitized.push({
+              id: currentUserId || `wallet_${cleanAddr}`,
+              name: cleanAddr ? `Player_${cleanAddr.slice(2, 6)}` : 'You',
+              tag: cleanAddr ? `Player#${cleanAddr.slice(2, 6)}` : 'You#0001',
+              avatar: '🦊',
+              address: cleanAddr,
+              tokenBalance: liveChips,
+              wins: liveWins,
+              matchesPlayed: liveWins,
+              totalWinnings: `${liveChips}`,
+              stats: {
+                matchesPlayed: liveWins,
+                wins: liveWins,
+                losses: 0,
+                cardsPlayed: liveWins * 7,
+                totalWinnings: `${liveChips}`,
+                totalLosses: '0',
+              },
+            });
+          }
+
+          // Sort numerically by active tab
+          if (sort === 'chips') {
+            sanitized.sort((a: any, b: any) => (b.tokenBalance ?? 0) - (a.tokenBalance ?? 0));
+          } else {
+            sanitized.sort((a: any, b: any) => (b.wins ?? 0) - (a.wins ?? 0));
+          }
+        }
+
         setLeaders(sanitized);
       }
     } catch (err) {
@@ -84,7 +149,7 @@ export const Crazy8RichLeaderboard: React.FC<Crazy8RichLeaderboardProps> = ({
 
   useEffect(() => {
     fetchLeaders(sortBy);
-  }, [sortBy]);
+  }, [sortBy, currentUserChips, currentUserWins, currentUserAddress]);
 
   // Top 3 Podium
   const top1 = leaders[0];

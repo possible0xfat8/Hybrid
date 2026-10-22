@@ -168,41 +168,72 @@ export async function upsertCrazy8Profile(params: {
   }
 }
 
+const BOT_CHIPS: Record<string, number> = {
+  whale_1: 185000,
+  whale_2: 142500,
+  whale_3: 98000,
+  bot_host_stck: 67500,
+  bot_host_team: 51200,
+  bot_host_clsc: 38000,
+  bot_host_fast: 26400,
+  whale_4: 19500,
+};
+
 export async function getCrazy8Leaderboard(sort: string = 'wins', limit: number = 20) {
   const client = getSupabase();
   if (!client) return [];
 
   try {
-    let orderColumn = 'wins';
-    if (sort === 'total_winnings' || sort === 'chips') {
-      orderColumn = 'total_winnings';
-    } else if (sort === 'matches_played') {
-      orderColumn = 'matches_played';
-    }
-
     const { data, error } = await client
       .from('crazy8_profiles')
-      .select('id, address, tag, name, avatar, wins, matches_played, cards_played, total_winnings')
-      .order(orderColumn, { ascending: false })
-      .limit(limit);
+      .select('id, address, tag, name, avatar, wins, matches_played, cards_played, total_winnings');
 
     if (error) {
       console.warn('[Supabase] Leaderboard query error:', error.message);
       return [];
     }
 
-    return (data || []).map((row, idx) => ({
+    const leaderboard = (data || []).map((row) => {
+      const wins = row.wins || 0;
+      const matchesPlayed = row.matches_played || 0;
+      const cardsPlayed = row.cards_played || 0;
+      const totalWinnings = row.total_winnings || '0';
+      const botChip = BOT_CHIPS[row.id];
+      const chips = botChip !== undefined ? botChip : Math.max(10000, (parseFloat(totalWinnings) || 0) + 10000);
+
+      return {
+        rank: 0,
+        id: row.id,
+        address: row.address,
+        name: row.name || row.tag,
+        tag: row.tag,
+        avatar: row.avatar || '🦊',
+        tokenBalance: chips,
+        wins,
+        matchesPlayed,
+        cardsPlayed,
+        totalWinnings,
+        winRate: matchesPlayed > 0 ? Math.round((wins / matchesPlayed) * 100) : 0,
+        stats: {
+          matchesPlayed,
+          wins,
+          losses: Math.max(0, matchesPlayed - wins),
+          cardsPlayed,
+          totalWinnings,
+          totalLosses: '0',
+        },
+      };
+    });
+
+    if (sort === 'chips' || sort === 'total_winnings') {
+      leaderboard.sort((a, b) => (b.tokenBalance ?? 0) - (a.tokenBalance ?? 0));
+    } else {
+      leaderboard.sort((a, b) => (b.wins ?? 0) - (a.wins ?? 0));
+    }
+
+    return leaderboard.slice(0, limit).map((item, idx) => ({
+      ...item,
       rank: idx + 1,
-      id: row.id,
-      address: row.address,
-      name: row.name || row.tag,
-      tag: row.tag,
-      avatar: row.avatar || '🦊',
-      wins: row.wins || 0,
-      matchesPlayed: row.matches_played || 0,
-      cardsPlayed: row.cards_played || 0,
-      totalWinnings: row.total_winnings || '0',
-      winRate: (row.matches_played || 0) > 0 ? Math.round(((row.wins || 0) / row.matches_played) * 100) : 0,
     }));
   } catch (err) {
     console.warn('[Supabase] Leaderboard query exception:', err);
