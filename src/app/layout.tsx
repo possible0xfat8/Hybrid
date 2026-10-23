@@ -4,19 +4,19 @@ import { Web3Provider } from '@/components/shared/Web3Provider';
 import { LayoutShell } from '@/components/shared/LayoutShell';
 
 export const metadata: Metadata = {
-  title: 'Hemi Arcade | Unified Web3 Gaming Dashboard',
-  description: 'Jump into real-time Web3 gaming on Hemi Network. Battle for on-chain ELO in Hemi Chess or sweep the chip pots in Hemi Crazy 8.',
-  keywords: ['Hemi', 'Hemi Network', 'Web3 Gaming', 'Hemi Chess', 'Hemi Crazy 8', 'Arcade', 'Blockchain Gaming'],
+  title: 'Hybrid | Unified Web3 Gaming Dashboard',
+  description: 'Jump into real-time Web3 gaming on Hemi Network with Hybrid. Battle for on-chain ELO in Hemi Chess and Hemi Connect 4 or sweep the chip pots in Hemi Crazy 8.',
+  keywords: ['Hybrid', 'Hemi', 'Hemi Network', 'Web3 Gaming', 'Hemi Chess', 'Hemi Crazy 8', 'Hemi Connect 4', 'Arcade', 'Blockchain Gaming'],
   openGraph: {
-    title: 'Hemi Arcade | Unified Web3 Gaming Dashboard',
-    description: 'Jump into real-time Web3 gaming on Hemi Network. Battle for on-chain ELO in Hemi Chess or sweep the chip pots in Hemi Crazy 8.',
+    title: 'Hybrid | Unified Web3 Gaming Dashboard',
+    description: 'Jump into real-time Web3 gaming on Hemi Network with Hybrid. Battle for on-chain ELO in Hemi Chess and Hemi Connect 4 or sweep the chip pots in Hemi Crazy 8.',
     type: 'website',
-    siteName: 'Hemi Arcade',
+    siteName: 'Hybrid',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Hemi Arcade | Unified Web3 Gaming Dashboard',
-    description: 'Jump into real-time Web3 gaming on Hemi Network. Battle for on-chain ELO in Hemi Chess or sweep the chip pots in Hemi Crazy 8.',
+    title: 'Hybrid | Unified Web3 Gaming Dashboard',
+    description: 'Jump into real-time Web3 gaming on Hemi Network with Hybrid. Battle for on-chain ELO in Hemi Chess and Hemi Connect 4 or sweep the chip pots in Hemi Crazy 8.',
   },
 };
 

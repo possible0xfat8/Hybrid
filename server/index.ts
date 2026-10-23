@@ -138,7 +138,7 @@ app.get('/health', (_req, res) => {
     rootLinkStatus,
     packageJsonAtRoot: fs.existsSync('/package.json'),
     packageJsonAtCwd: fs.existsSync(path.join(process.cwd(), 'package.json')),
-    platform: 'Hemi Arcade Unified Server',
+    platform: 'Hybrid Unified Server',
     namespaces: ['/chess', '/uno', '/connect4'],
     activeChessGames: chessEngine.activeGames.size,
     activeUnoRooms: roomManager.getAllRooms().length,
@@ -157,7 +157,7 @@ app.all(/.*/, (req, res) => {
 // Start Server on PORT 3000 immediately
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`\n=================================================`);
-  console.log(`🚀 HEMI ARCADE UNIFIED SERVER LISTENING ON PORT ${PORT}`);
+  console.log(`🚀 HYBRID UNIFIED SERVER LISTENING ON PORT ${PORT}`);
   console.log(`🎮 Socket /chess namespace: ws://0.0.0.0:${PORT}/chess`);
   console.log(`🃏 Socket /uno namespace:   ws://0.0.0.0:${PORT}/uno`);
   console.log(`🔴 Socket /connect4:        ws://0.0.0.0:${PORT}/connect4`);

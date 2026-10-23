@@ -53,7 +53,7 @@ export function Navbar() {
           <Link
             href="/"
             className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-slate-300 hover:text-white transition-all group shrink-0"
-            title="Return to Hemi Arcade Hub"
+            title="Return to Hybrid Hub"
           >
             <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform text-[#FF4600]" />
             <span className="font-bold text-xs">Arcade</span>

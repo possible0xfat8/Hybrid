@@ -1,5 +1,5 @@
 -- ============================================================================
--- HEMI ARCADE - COMPLETE DATABASE RESET SCRIPT
+-- HYBRID - COMPLETE DATABASE RESET SCRIPT
 -- ============================================================================
 -- WARNING: This script drops all arcade tables, views, and data in the public schema.
 -- Run this in your Supabase SQL Editor to wipe the database clean before running

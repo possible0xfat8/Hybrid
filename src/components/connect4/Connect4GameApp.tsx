@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 
 export interface Connect4Player {
+  socketId?: string;
   address: string;
   displayName: string;
   avatar: string;
@@ -54,6 +55,7 @@ export interface Connect4Player {
 export interface Connect4RoomState {
   roomCode: string;
   gameId: string;
+  isQuickMatch?: boolean;
   players: Connect4Player[];
   board: CellValue[][];
   currentTurn: 1 | 2;
@@ -126,6 +128,7 @@ export default function Connect4GameApp() {
       setRoomState(state);
       setMatchmakingSearching(false);
       setErrorMessage(null);
+      isLocalMatchRef.current = false;
       if (state.status !== 'game_over') {
         setIsGameOverMinimized(false);
       }
@@ -169,19 +172,26 @@ export default function Connect4GameApp() {
 
   // Determine current player's number (1 or 2)
   const myPlayerNumber: 1 | 2 | null = useMemo(() => {
-    if (!roomState || !socket) return null;
+    if (!roomState) return null;
+    if (isLocalMatchRef.current) return 1;
+
+    // 1. Primary match: Match by current client socket ID (supports multi-tab testing on same device)
+    if (socket?.id) {
+      const socketMatch = roomState.players.find((p) => p.socketId === socket.id);
+      if (socketMatch) return socketMatch.playerNumber;
+    }
+
+    // 2. Secondary match: Match by wallet address
     if (userAddress) {
       const match = roomState.players.find(
         (p) => p.address.toLowerCase() === userAddress.toLowerCase()
       );
       if (match) return match.playerNumber;
     }
-    // Fallback: match by socketId
-    const socketMatch = roomState.players.find((p) => (p as any).socketId === socket.id);
-    if (socketMatch) return socketMatch.playerNumber;
-    // Default to player 1 if solo or 1st seat
+
+    // Fallback: match by seating
     return roomState.players[0]?.playerNumber || 1;
-  }, [roomState, socket, userAddress]);
+  }, [roomState, socket?.id, userAddress]);
 
   const p1 = roomState?.players.find((p) => p.playerNumber === 1);
   const p2 = roomState?.players.find((p) => p.playerNumber === 2);
@@ -279,31 +289,19 @@ export default function Connect4GameApp() {
   // Lobby Actions
   const handleQuickMatch = () => {
     c4Audio.playClick();
-    const launchLocalQuick = () => {
-      isLocalMatchRef.current = true;
-      const localRoom = createLocalConnect4Room(userAddress, undefined, '🦊', 'Challenger Neo', '⚡');
-      setRoomState(localRoom);
-      setMatchmakingSearching(false);
-      c4Audio.playDrop();
-    };
+    isLocalMatchRef.current = false;
 
-    if (socket && socket.connected) {
-      setMatchmakingSearching(true);
-      const timer = setTimeout(() => {
-        launchLocalQuick();
-      }, 3000);
-
-      socket.emit('join_matchmaking', {
-        address: userAddress || `0xGuest_${Math.random().toString(36).substring(2, 6)}`,
-        displayName: userAddress ? `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}` : 'Hemi Challenger',
-        avatar: '🦊',
-      });
-    } else {
-      setMatchmakingSearching(true);
-      setTimeout(() => {
-        launchLocalQuick();
-      }, 1000);
+    if (!socket || !socket.connected) {
+      setErrorMessage('Connecting to Connect 4 game server... Please try again in a moment.');
+      return;
     }
+
+    setMatchmakingSearching(true);
+    socket.emit('join_matchmaking', {
+      address: userAddress || `0xGuest_${Math.random().toString(36).substring(2, 6)}`,
+      displayName: userAddress ? `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}` : 'Hemi Challenger',
+      avatar: '🦊',
+    });
   };
 
   const handleCancelMatchmaking = () => {
@@ -311,7 +309,11 @@ export default function Connect4GameApp() {
     setMatchmakingSearching(false);
     if (socket && socket.connected) {
       socket.emit('cancel_matchmaking');
+      if (roomState?.roomCode) {
+        socket.emit('leave_room', { roomCode: roomState.roomCode });
+      }
     }
+    setRoomState(null);
   };
 
   const handlePlayBot = () => {
@@ -440,8 +442,13 @@ export default function Connect4GameApp() {
 
   const handleLeaveRoom = () => {
     c4Audio.playClick();
+    if (socket && socket.connected && roomState) {
+      socket.emit('leave_room', { roomCode: roomState.roomCode });
+      socket.emit('cancel_matchmaking');
+    }
     isLocalMatchRef.current = false;
     setRoomState(null);
+    setMatchmakingSearching(false);
     setChatMessages([]);
   };
 
@@ -495,7 +502,7 @@ export default function Connect4GameApp() {
             <Link
               href="/"
               className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-slate-300 hover:text-white transition-all group shrink-0"
-              title="Return to Hemi Arcade Hub"
+              title="Return to Hybrid Hub"
             >
               <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform text-[#FF4600]" />
               <span className="font-bold text-xs">Arcade</span>
@@ -577,20 +584,36 @@ export default function Connect4GameApp() {
         {(!roomState || roomState.status === 'waiting') && (
           <div className="w-full max-w-4xl mx-auto space-y-8 animate-in fade-in duration-300">
             
-            {/* Waiting in Private Room Banner */}
+            {/* Waiting in Private / Quick Match Room Banner */}
             {roomState && roomState.status === 'waiting' && (
               <div className="p-6 rounded-2xl bg-gradient-to-r from-[#FF4600]/20 via-obsidian-900 to-obsidian-950 border border-[#FF4600]/40 text-center space-y-4 shadow-2xl">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FF4600]/20 text-[#FF4600] text-xs font-mono font-bold">
                   <Radio className="w-3.5 h-3.5 animate-pulse" />
-                  WAITING FOR OPPONENT
+                  {roomState.isQuickMatch ? 'QUICK MATCH: WAITING FOR 1v1 CHALLENGER' : 'WAITING FOR OPPONENT'}
                 </div>
 
                 <h3 className="text-xl sm:text-2xl font-black text-white">
-                  Room Ready: <span className="font-mono text-[#FF4600]">{roomState.roomCode}</span>
+                  {roomState.isQuickMatch ? (
+                    <>
+                      Temporary Server Created: <span className="font-mono text-[#FF4600]">{roomState.roomCode}</span>
+                    </>
+                  ) : (
+                    <>
+                      Room Ready: <span className="font-mono text-[#FF4600]">{roomState.roomCode}</span>
+                    </>
+                  )}
                 </h3>
 
                 <p className="text-xs sm:text-sm text-slate-300 max-w-md mx-auto">
-                  Share this room code with a friend or rival. The match begins instantly once they drop in!
+                  {roomState.isQuickMatch ? (
+                    <>
+                      Your temporary 1v1 match server is live. When another player clicks <strong>Quick Match</strong>, the match begins automatically! You can also share the code with a friend.
+                    </>
+                  ) : (
+                    <>
+                      Share this room code with a friend or rival. The match begins instantly once they drop in!
+                    </>
+                  )}
                 </p>
 
                 <div className="flex items-center justify-center gap-3">
@@ -606,7 +629,7 @@ export default function Connect4GameApp() {
                     onClick={handleLeaveRoom}
                     className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-xs font-bold transition-all"
                   >
-                    Cancel Room
+                    {roomState.isQuickMatch ? 'Cancel Matchmaking' : 'Cancel Room'}
                   </button>
                 </div>
               </div>
@@ -1380,7 +1403,7 @@ export default function Connect4GameApp() {
 
       {/* ── Standalone Footer ── */}
       <footer className="w-full border-t border-white/5 py-4 px-4 sm:px-6 lg:px-8 text-center text-[11px] font-mono text-slate-500">
-        Hemi Connect 4 • Chain: 743111 • Contract: 0xfe6d...afa3 • Unified Hemi Arcade Hub
+        Hemi Connect 4 • Chain: 743111 • Contract: 0xfe6d...afa3 • Unified Hybrid Hub
       </footer>
 
       {/* Universal User Profile Inspector Modal */}

@@ -148,7 +148,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const bio =
     enrichedData?.bio ||
     user.bio ||
-    (isBot ? 'Hemi Arcade Resident AI Challenger. Always down for a fast match!' : 'Crazy 8 Pot Sweeper & Hemi Arcade Challenger');
+    (isBot ? 'Hybrid Resident AI Challenger. Always down for a fast match!' : 'Crazy 8 Pot Sweeper & Hybrid Challenger');
 
   const matchesPlayed =
     enrichedData?.stats?.matchesPlayed ??

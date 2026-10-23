@@ -37,10 +37,10 @@ export function Navbar() {
               <div className="flex flex-col">
                 <div className="flex items-center gap-1.5">
                   <span className="font-black tracking-tight text-base sm:text-lg text-white whitespace-nowrap">
-                    HEMI <span className="text-[#FF4600]">ARCADE</span>
+                    HYBRID
                   </span>
                   <span className="hidden xs:inline-block px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-[#FF4600]/20 border border-[#FF4600]/40 text-[#FF4600] uppercase tracking-wider">
-                    SEPOLIA
+                    HEMI
                   </span>
                 </div>
                 <span className="hidden sm:block text-[10px] text-slate-400 font-mono tracking-wide -mt-0.5">

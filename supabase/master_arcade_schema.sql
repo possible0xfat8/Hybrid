@@ -1,7 +1,7 @@
 -- ============================================================================
--- HEMI ARCADE - MASTER "ONE FOR ALL" DATABASE SCHEMA
+-- HYBRID - MASTER "ONE FOR ALL" DATABASE SCHEMA
 -- ============================================================================
--- This single SQL file provisions the entire database for all Hemi Arcade games:
+-- This single SQL file provisions the entire database for all Hybrid games on Hemi Network:
 --   1. Chess Tables & Views (players, game_history, moves, leaderboard, etc.)
 --   2. Crazy 8 / Uno Tables & Views (crazy8_profiles, crazy8_rooms, crazy8_leaderboard, etc.)
 --   3. Connect 4 Tables (connect4_matches)

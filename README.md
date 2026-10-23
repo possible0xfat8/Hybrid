@@ -1,6 +1,6 @@
-# 🎮 Hemi Arcade
-
-> Unified Web3 multiplayer arcade platform powered by **Hemi Network** (Sepolia Testnet). Fast-paced, high-stakes games with on-chain ELO ratings, chip pots, live real-time matchmaking, and zero clunky setup.
+# 🎮 Hybrid
+ 
+> Unified Web3 multiplayer platform powered by **Hemi Network** (Sepolia Testnet), built for the **Hemi Arcade** competition. Fast-paced, high-stakes games with on-chain ELO ratings, chip pots, live real-time matchmaking, and zero clunky setup.
 
 ---
 

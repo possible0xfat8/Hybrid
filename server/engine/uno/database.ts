@@ -245,7 +245,7 @@ export class ServerDatabase {
       { id: 'whale_3', name: 'SatoshiShark', avatar: '🦈', tag: 'SatoshiShark#0003', chips: 98000, wins: 64, losses: 16, earned: '85000', lost: '14000', bio: 'High Stakes Player' },
       { id: 'bot_host_stck', name: 'NeoDash', avatar: '🤖', tag: 'NeoDash#0004', chips: 67500, wins: 45, losses: 15, earned: '58000', lost: '12000', bio: 'Bot Buster & Card Shark' },
       { id: 'bot_host_team', name: 'FoxCardist', avatar: '🦊', tag: 'FoxCardist#0005', chips: 51200, wins: 39, losses: 19, earned: '44000', lost: '18000', bio: 'Fast Draw Specialist' },
-      { id: 'bot_host_clsc', name: 'LumiBear', avatar: '🐻', tag: 'LumiBear#0006', chips: 38000, wins: 28, losses: 14, earned: '32000', lost: '11000', bio: 'Hemi Arcade Resident Challenger' },
+      { id: 'bot_host_clsc', name: 'LumiBear', avatar: '🐻', tag: 'LumiBear#0006', chips: 38000, wins: 28, losses: 14, earned: '32000', lost: '11000', bio: 'Hybrid Resident Challenger' },
       { id: 'bot_host_fast', name: 'Tobz', avatar: '🐱', tag: 'Tobz#0007', chips: 26400, wins: 21, losses: 11, earned: '24000', lost: '8000', bio: 'Speed Player' },
       { id: 'whale_4', name: 'DragonAce', avatar: '🐉', tag: 'DragonAce#0008', chips: 19500, wins: 17, losses: 9, earned: '18000', lost: '7500', bio: 'Wild 8 Enthusiast' },
     ];

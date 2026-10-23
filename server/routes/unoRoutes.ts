@@ -203,7 +203,7 @@ export function createUnoRoutes(roomManager: RoomManager): Router {
     serverDb.addNotification(`wallet_${cleanAddr}`, {
       type: 'airdrop_claimed',
       title: '🎁 Welcome Airdrop Received!',
-      message: '10,000 $CRAZY8 tokens credited for Hemi Arcade play.',
+      message: '10,000 $CRAZY8 tokens credited for Hybrid play.',
       amount: '10000',
     });
     res.json({
@@ -211,7 +211,7 @@ export function createUnoRoutes(roomManager: RoomManager): Router {
       amount: '10000',
       balance: newBal.toString(),
       hasClaimed: true,
-      message: '10,000 $CRAZY8 credited for Hemi Arcade play!',
+      message: '10,000 $CRAZY8 credited for Hybrid play!',
     });
   });
 

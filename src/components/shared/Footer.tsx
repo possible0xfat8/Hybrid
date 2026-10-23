@@ -13,10 +13,10 @@ export function Footer() {
             <div className="w-8 h-8 rounded-lg bg-[#FF4600] flex items-center justify-center text-white shadow-[0_0_12px_rgba(255,70,0,0.3)]">
               <Gamepad2 className="w-4 h-4" />
             </div>
-            <span className="font-bold text-white tracking-wider text-base">HEMI ARCADE</span>
+            <span className="font-bold text-white tracking-wider text-base">HYBRID</span>
           </div>
           <p className="text-xs text-slate-400 leading-relaxed">
-            The premier Web3 arcade ecosystem powered by Hemi Network. Featuring on-chain competitive Chess and high-stakes Crazy 8 Uno with automated escrow settlements.
+            The premier Web3 arcade ecosystem powered by Hemi Network. Featuring on-chain competitive Chess, high-stakes Crazy 8 Uno, and Connect 4 with automated smart contract settlements.
           </p>
           <div className="flex items-center gap-2 text-[11px] text-[#FF4600]">
             <span className="w-2 h-2 rounded-full bg-[#FF4600] animate-pulse" />
@@ -146,7 +146,7 @@ export function Footer() {
       </div>
 
       <div className="max-w-7xl mx-auto pt-8 mt-8 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-4">
-        <div>© 2026 Hemi Arcade. Unified Web3 Gaming Dashboard.</div>
+        <div>© 2026 Hybrid. Unified Web3 Gaming Dashboard on Hemi Network.</div>
         <div className="flex items-center gap-4 text-xs font-mono">
           <span className="text-[#FF4600]">Socket Isolation: /chess, /uno & /connect4</span>
           <span>•</span>

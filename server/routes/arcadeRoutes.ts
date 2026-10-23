@@ -34,7 +34,7 @@ export function createArcadeRoutes(chessEngine: ChessEngine, roomManager: RoomMa
 
     res.json({
       success: true,
-      platform: 'Hemi Arcade',
+      platform: 'Hybrid',
       network: 'Hemi Sepolia (743111)',
       totals: {
         activePlayers: chessConnectedPlayers + unoTotalPlayers,

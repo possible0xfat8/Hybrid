@@ -101,7 +101,7 @@ export default function ArcadeDashboard() {
           {/* Platform Badge */}
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-obsidian-900 border border-[#FF4600]/30 text-xs font-semibold text-[#FF4600] shadow-[0_0_16px_rgba(255,70,0,0.15)]">
             <Gamepad2 className="w-3.5 h-3.5 text-[#FF4600]" />
-            <span className="text-white font-medium">Hemi Arcade</span>
+            <span className="text-white font-medium">Hybrid</span>
             <span className="text-slate-600">•</span>
             <span className="flex items-center gap-1.5 font-mono text-[11px] text-[#FF4600]">
               <span className="w-1.5 h-1.5 rounded-full bg-[#FF4600] animate-ping" />
@@ -300,7 +300,7 @@ export default function ArcadeDashboard() {
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                A 4th Web3 multiplayer title is coming to Hemi Arcade. Stay tuned for announcements!
+                A 4th Web3 multiplayer title is coming to Hybrid. Stay tuned for announcements!
               </p>
             </div>
           </div>

@@ -41,28 +41,45 @@ export interface Connect4PlayerStats {
   bestStreak: number;
 }
 
+const statsCache = new Map<string, { stats: Connect4PlayerStats; expiresAt: number }>();
+
 export async function getConnect4PlayerStats(address: string): Promise<Connect4PlayerStats> {
+  const defaultStats: Connect4PlayerStats = {
+    address,
+    elo: 1200,
+    wins: 0,
+    losses: 0,
+    totalGames: 0,
+    currentStreak: 0,
+    bestStreak: 0,
+  };
+
+  if (!address || !isAddress(address)) {
+    return defaultStats;
+  }
+
+  const normalized = address.toLowerCase();
+  const cached = statsCache.get(normalized);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.stats;
+  }
+
   try {
-    if (!address || !isAddress(address)) {
-      return {
-        address,
-        elo: 1200,
-        wins: 0,
-        losses: 0,
-        totalGames: 0,
-        currentStreak: 0,
-        bestStreak: 0,
-      };
-    }
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('RPC request timed out')), 1200)
+    );
 
-    const data = await publicClient.readContract({
-      address: CONTRACT_ADDRESS,
-      abi: connect4Abi,
-      functionName: 'getPlayer',
-      args: [address as `0x${string}`],
-    }) as [bigint, bigint, bigint, bigint, bigint, bigint, bigint];
+    const data = (await Promise.race([
+      publicClient.readContract({
+        address: CONTRACT_ADDRESS,
+        abi: connect4Abi,
+        functionName: 'getPlayer',
+        args: [address as `0x${string}`],
+      }),
+      timeoutPromise,
+    ])) as [bigint, bigint, bigint, bigint, bigint, bigint, bigint];
 
-    return {
+    const result: Connect4PlayerStats = {
       address,
       elo: Math.round(Number(formatEther(data[0]))),
       wins: Number(data[1]),
@@ -71,17 +88,12 @@ export async function getConnect4PlayerStats(address: string): Promise<Connect4P
       currentStreak: Number(data[4]),
       bestStreak: Number(data[5]),
     };
+
+    statsCache.set(normalized, { stats: result, expiresAt: Date.now() + 60_000 });
+    return result;
   } catch (error) {
-    console.error(`[Connect4Settlement] Failed to read player stats for ${address}:`, error);
-    return {
-      address,
-      elo: 1200,
-      wins: 0,
-      losses: 0,
-      totalGames: 0,
-      currentStreak: 0,
-      bestStreak: 0,
-    };
+    console.warn(`[Connect4Settlement] Using default stats for ${address} (RPC notice: ${(error as any)?.message || error})`);
+    return defaultStats;
   }
 }
 

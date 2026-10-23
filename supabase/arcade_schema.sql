@@ -1,5 +1,5 @@
 -- ============================================================================
--- HEMI ARCADE - UNIFIED MULTI-GAME DATABASE SCHEMA
+-- HYBRID - UNIFIED MULTI-GAME DATABASE SCHEMA
 -- Game-Specific Tables & Views:
 --   1. crazy8_*   -> Crazy 8 / Uno Card Game Tables
 --   2. connect4_* -> Connect 4 Game Tables

@@ -39,6 +39,7 @@ export interface Connect4Room {
     winDelta: number;
     loseDelta: number;
   };
+  isQuickMatch?: boolean;
 }
 
 export function checkConnect4Win(board: CellValue[][]): { winner: 1 | 2 | null; line: [number, number][] | null } {
@@ -187,7 +188,9 @@ export function initConnect4Namespace(io: Server) {
     c4Namespace.to(room.roomCode).emit('room_state', {
       roomCode: room.roomCode,
       gameId: room.gameId,
+      isQuickMatch: room.isQuickMatch,
       players: room.players.map((p) => ({
+        socketId: p.socketId,
         address: p.address,
         displayName: p.displayName,
         avatar: p.avatar,
@@ -315,80 +318,126 @@ export function initConnect4Namespace(io: Server) {
   c4Namespace.on('connection', (socket: Socket) => {
     console.log(`[Connect4] Socket connected: ${socket.id}`);
 
-    // 1. Join matchmaking queue
+    // 1. Join matchmaking / Quick Match (Temporary server 1v1 matching)
     socket.on('join_matchmaking', async (data: { address: string; displayName?: string; avatar?: string }) => {
       const address = data.address || `0x${socket.id.slice(0, 8)}`;
       const stats = await getConnect4PlayerStats(address);
       const displayName = data.displayName || `${address.slice(0, 6)}...${address.slice(-4)}`;
       const avatar = data.avatar || '🦊';
 
-      // Check if already in queue
-      const existingIdx = matchmakingQueue.findIndex((q) => q.socketId === socket.id);
-      if (existingIdx !== -1) matchmakingQueue.splice(existingIdx, 1);
+      // Clean up any existing waiting room this socket might have previously opened
+      for (const [code, r] of rooms.entries()) {
+        if (r.status === 'waiting' && r.players.some((p) => p.socketId === socket.id)) {
+          rooms.delete(code);
+        }
+      }
 
-      // Try to find a match in the queue
-      if (matchmakingQueue.length > 0) {
-        const opponent = matchmakingQueue.shift()!;
+      // Try to find an existing open Quick Match waiting room
+      let matchedRoom: Connect4Room | null = null;
+      for (const [code, r] of rooms.entries()) {
+        if (r.isQuickMatch && r.status === 'waiting' && r.players.length === 1) {
+          const host = r.players[0];
+          const hostSocket = c4Namespace.sockets.get(host.socketId);
+          if (!hostSocket || !hostSocket.connected) {
+            // Stale host socket - clean up room
+            rooms.delete(code);
+            continue;
+          }
+          if (host.socketId === socket.id) {
+            // Don't match with yourself on the same socket
+            continue;
+          }
+          matchedRoom = r;
+          break;
+        }
+      }
+
+      if (matchedRoom) {
+        // Player 2 drops in! Temporary server activates and duel begins!
+        let player2Name = displayName;
+        if (matchedRoom.players[0].displayName === player2Name) {
+          player2Name = `${player2Name} (P2)`;
+        }
+
+        matchedRoom.players.push({
+          socketId: socket.id,
+          address,
+          displayName: player2Name,
+          avatar,
+          elo: stats.elo,
+          playerNumber: 2,
+          ready: true,
+        });
+
+        matchedRoom.status = 'playing';
+        matchedRoom.currentTurn = 1;
+        socket.join(matchedRoom.roomCode);
+
+        console.log(
+          `[Connect4] Quick Match started: Room ${matchedRoom.roomCode} between ${matchedRoom.players[0].displayName} (P1) and ${player2Name} (P2)`
+        );
+
+        startTurnTimer(matchedRoom);
+        broadcastRoomState(matchedRoom);
+      } else {
+        // No waiting room available: Player 1 creates a temporary server room and waits
         const roomCode = `C4-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
         const gameId = `c4_${Date.now()}_${roomCode}`;
 
         const room: Connect4Room = {
           roomCode,
           gameId,
+          isQuickMatch: true,
           players: [
-            {
-              socketId: opponent.socketId,
-              address: opponent.address,
-              displayName: opponent.displayName,
-              avatar: opponent.avatar,
-              elo: opponent.elo,
-              playerNumber: 1,
-              ready: true,
-            },
             {
               socketId: socket.id,
               address,
               displayName,
               avatar,
               elo: stats.elo,
-              playerNumber: 2,
+              playerNumber: 1,
               ready: true,
             },
           ],
           board: createEmptyBoard(),
           currentTurn: 1,
-          status: 'playing',
+          status: 'waiting',
           winner: null,
           winningLine: null,
           turnDeadline: Date.now() + TURN_DURATION_SECONDS * 1000,
         };
 
         rooms.set(roomCode, room);
-
-        const oppSocket = c4Namespace.sockets.get(opponent.socketId);
-        if (oppSocket) oppSocket.join(roomCode);
         socket.join(roomCode);
 
-        startTurnTimer(room);
+        console.log(`[Connect4] Quick Match temporary server room created: ${roomCode} by ${displayName}`);
         broadcastRoomState(room);
-      } else {
-        matchmakingQueue.push({
-          socketId: socket.id,
-          address,
-          displayName,
-          avatar,
-          elo: stats.elo,
-        });
-        socket.emit('matchmaking_queued', { position: matchmakingQueue.length });
       }
     });
 
     socket.on('cancel_matchmaking', () => {
-      const idx = matchmakingQueue.findIndex((q) => q.socketId === socket.id);
-      if (idx !== -1) {
-        matchmakingQueue.splice(idx, 1);
-        socket.emit('matchmaking_cancelled');
+      for (const [code, r] of rooms.entries()) {
+        if (r.status === 'waiting' && r.players.some((p) => p.socketId === socket.id)) {
+          rooms.delete(code);
+          console.log(`[Connect4] Cancelled waiting room: ${code}`);
+        }
       }
+      socket.emit('matchmaking_cancelled');
+    });
+
+    socket.on('leave_room', (data?: { roomCode?: string }) => {
+      if (data?.roomCode) {
+        const r = rooms.get(data.roomCode);
+        if (r && r.status === 'waiting') {
+          rooms.delete(data.roomCode);
+        }
+      }
+      for (const [code, r] of rooms.entries()) {
+        if (r.status === 'waiting' && r.players.some((p) => p.socketId === socket.id)) {
+          rooms.delete(code);
+        }
+      }
+      socket.emit('matchmaking_cancelled');
     });
 
     // 2. Play vs Bot (Instant solo match)
@@ -568,10 +617,15 @@ export function initConnect4Namespace(io: Server) {
 
     // 6. Disconnect
     socket.on('disconnect', () => {
-      const qIdx = matchmakingQueue.findIndex((q) => q.socketId === socket.id);
-      if (qIdx !== -1) matchmakingQueue.splice(qIdx, 1);
+      // 1. Clean up any waiting rooms created by this socket
+      for (const [code, r] of rooms.entries()) {
+        if (r.status === 'waiting' && r.players.some((p) => p.socketId === socket.id)) {
+          rooms.delete(code);
+          console.log(`[Connect4] Socket disconnected, cleaned up waiting room: ${code}`);
+        }
+      }
 
-      // Check if player in active room
+      // 2. Check if player in active room
       for (const [code, room] of rooms.entries()) {
         const player = room.players.find((p) => p.socketId === socket.id);
         if (player && room.status === 'playing') {

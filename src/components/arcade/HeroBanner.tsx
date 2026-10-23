@@ -21,7 +21,7 @@ export function HeroBanner() {
           className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-obsidian-850 border border-[#FF4600]/30 text-xs font-semibold text-[#FF4600] shadow-[0_0_16px_rgba(255,70,0,0.2)]"
         >
           <Sparkles className="w-3.5 h-3.5 text-[#FF4600]" />
-          <span className="text-white font-medium">Hemi Arcade</span>
+          <span className="text-white font-medium">Hybrid</span>
           <span className="text-slate-500">•</span>
           <span className="text-[#FF4600] flex items-center gap-1 font-mono font-bold">
             <span className="w-1.5 h-1.5 rounded-full bg-[#FF4600] animate-ping" />
