@@ -41,6 +41,8 @@ import {
 import { Crazy8ProfileDashboard } from './Crazy8ProfileDashboard';
 import { Crazy8RichLeaderboard } from './Crazy8RichLeaderboard';
 import { UserProfileModal, UserProfileTarget } from '../shared/UserProfileModal';
+import { SpectatorRoomsModal } from './SpectatorRoomsModal';
+import { Tv } from 'lucide-react';
 
 export interface LobbyViewProps {
   gameState: GameState | null;
@@ -141,6 +143,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   const [copiedRoomCode, setCopiedRoomCode] = useState(false);
   const [sortOption, setSortOption] = useState<'popular' | 'players' | 'fastest'>('popular');
   const [inspectProfile, setInspectProfile] = useState<UserProfileTarget | null>(null);
+  const [isSpectatorModalOpen, setIsSpectatorModalOpen] = useState(false);
 
   // Change Name on Homepage State
   const [isEditingName, setIsEditingName] = useState(false);
@@ -344,29 +347,40 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         )}
         {/* Spectator Notice */}
         {isSpectator && (
-          <div className="mb-4 sm:mb-5 p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-[#FF4600]/10 border border-[#FF4600]/40 flex items-center justify-between gap-2 sm:gap-3">
+          <div className="mb-4 sm:mb-5 p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-red-500/15 via-[#FF4600]/15 to-purple-500/15 border border-red-500/40 flex items-center justify-between gap-2 sm:gap-3">
             <div className="flex items-center gap-2 sm:gap-2.5">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-[#FF4600]/20 flex items-center justify-center text-[#FF4600] shrink-0">
-                <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-red-500/20 flex items-center justify-center text-red-400 shrink-0">
+                <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-pulse" />
               </div>
               <div>
                 <div className="text-[11px] sm:text-xs font-black text-white flex items-center gap-1.5">
-                  <span>Spectating Room</span>
-                  <span className="px-1.5 py-0.5 rounded bg-[#FF4600]/30 text-orange-200 text-[9px] sm:text-[10px] font-bold">
-                    Watcher
+                  <span>Spectating Lobby</span>
+                  <span className="px-1.5 py-0.5 rounded bg-red-500/30 text-red-200 text-[9px] sm:text-[10px] font-bold">
+                    Judge / Streamer Cam
                   </span>
                 </div>
-                <div className="text-[10px] sm:text-[11px] text-orange-200/80">
-                  You are watching this lobby in real time.
+                <div className="text-[10px] sm:text-[11px] text-slate-300">
+                  You are observing this lobby in real time. Player card hands remain masked when the game starts.
                 </div>
               </div>
             </div>
-            <button
-              onClick={onLeaveRoom}
-              className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] sm:text-xs font-bold shrink-0 transition-colors cursor-pointer"
-            >
-              Exit
-            </button>
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsSpectatorModalOpen(true)}
+                className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl bg-white/[0.08] hover:bg-white/[0.14] text-white text-[10px] sm:text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                title="Browse other live games"
+              >
+                <Tv className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#FF4600]" />
+                <span className="hidden xs:inline">Browse</span>
+              </button>
+              <button
+                onClick={onLeaveRoom}
+                className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] sm:text-xs font-bold shrink-0 transition-colors cursor-pointer"
+              >
+                Exit
+              </button>
+            </div>
           </div>
         )}
 
@@ -1061,13 +1075,9 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
           {/* LIVE Spectate Games */}
           <div
             onClick={() => {
-              if (displayTables.length > 0) {
-                onSpectateRoom(displayTables[0].code, playerName, selectedAvatar);
-              }
+              setIsSpectatorModalOpen(true);
             }}
-            className={`mt-2 p-3.5 rounded-xl bg-white/[0.02] border transition-all ${
-              displayTables.length > 0 ? 'border-white/[0.06] hover:border-white/[0.12] cursor-pointer' : 'border-white/[0.03] opacity-60 cursor-default'
-            } group`}
+            className="mt-2 p-3.5 rounded-xl bg-gradient-to-r from-red-950/20 via-white/[0.02] to-purple-950/20 border border-red-500/30 hover:border-red-500/60 hover:bg-red-500/[0.06] transition-all cursor-pointer group shadow-sm"
           >
             <div className="flex items-center justify-between mb-1.5">
               <span className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-red-400">
@@ -1076,11 +1086,12 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               </span>
               <Eye className="w-4 h-4 text-slate-400 group-hover:text-[#FF4600] transition-colors" />
             </div>
-            <div className="text-xs font-black text-white group-hover:text-[#FF4600] transition-colors">
-              Spectate Games
+            <div className="text-xs font-black text-white group-hover:text-[#FF4600] transition-colors flex items-center justify-between">
+              <span>Spectate Games</span>
+              <span className="text-[10px] font-normal text-slate-400 group-hover:text-slate-200">Browse &rarr;</span>
             </div>
             <div className="text-[11px] text-slate-400 mt-0.5">
-              {displayTables.length > 0 ? `${displayTables.length} active match${displayTables.length > 1 ? 'es' : ''}` : 'No active matches'}
+              {displayTables.length > 0 ? `${displayTables.length} active match${displayTables.length > 1 ? 'es' : ''} • Judge Cam` : 'Open spectator hub'}
             </div>
           </div>
 
@@ -1224,18 +1235,31 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 </div>
               </div>
 
-              {/* Sort by dropdown */}
-              <div className="text-[10px] sm:text-xs text-slate-400 font-mono flex items-center gap-1 sm:gap-1.5 bg-white/[0.04] px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-white/[0.06]">
-                <span className="hidden sm:inline">Sort by:</span>
-                <select
-                  value={sortOption}
-                  onChange={(e) => setSortOption(e.target.value as any)}
-                  className="bg-transparent text-white font-bold outline-none cursor-pointer text-[10px] sm:text-xs"
+              <div className="flex items-center gap-2">
+                {/* Spectate Hub Trigger */}
+                <button
+                  type="button"
+                  onClick={() => setIsSpectatorModalOpen(true)}
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 hover:text-white text-[10px] sm:text-xs font-bold transition-all cursor-pointer"
+                  title="Open Spectator Hub to view all live games"
                 >
-                  <option value="popular" className="bg-slate-900 text-white">Popular</option>
-                  <option value="players" className="bg-slate-900 text-white">Players</option>
-                  <option value="fastest" className="bg-slate-900 text-white">Fastest</option>
-                </select>
+                  <Eye className="w-3.5 h-3.5 text-red-400 animate-pulse" />
+                  <span>Spectate Hub</span>
+                </button>
+
+                {/* Sort by dropdown */}
+                <div className="text-[10px] sm:text-xs text-slate-400 font-mono flex items-center gap-1 sm:gap-1.5 bg-white/[0.04] px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-white/[0.06]">
+                  <span className="hidden sm:inline">Sort by:</span>
+                  <select
+                    value={sortOption}
+                    onChange={(e) => setSortOption(e.target.value as any)}
+                    className="bg-transparent text-white font-bold outline-none cursor-pointer text-[10px] sm:text-xs"
+                  >
+                    <option value="popular" className="bg-slate-900 text-white">Popular</option>
+                    <option value="players" className="bg-slate-900 text-white">Players</option>
+                    <option value="fastest" className="bg-slate-900 text-white">Fastest</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -1317,13 +1341,25 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                         </button>
                       </div>
 
-                      <button
-                        onClick={() => handleJoinTable(table.code)}
-                        className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-[#FF4600] hover:bg-[#FF5500] text-white font-bold text-[10px] sm:text-xs transition-all active:scale-95 flex items-center gap-1 cursor-pointer shrink-0"
-                      >
-                        <span>Join</span>
-                        <ChevronRight className="w-3 h-3" />
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => onSpectateRoom(table.code, playerName, selectedAvatar)}
+                          className="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-red-500/40 text-slate-300 hover:text-white font-bold text-[10px] sm:text-xs transition-all active:scale-95 flex items-center gap-1 cursor-pointer shrink-0"
+                          title="Spectate this match as a streamer/judge"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-red-400" />
+                          <span className="hidden xs:inline">Watch</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleJoinTable(table.code)}
+                          className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-[#FF4600] hover:bg-[#FF5500] text-white font-bold text-[10px] sm:text-xs transition-all active:scale-95 flex items-center gap-1 cursor-pointer shrink-0"
+                        >
+                          <span>Join</span>
+                          <ChevronRight className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -1484,6 +1520,16 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         user={inspectProfile}
         currentUserAddress={wallet.address}
         currentUserId={account?.id}
+      />
+
+      <SpectatorRoomsModal
+        isOpen={isSpectatorModalOpen}
+        onClose={() => setIsSpectatorModalOpen(false)}
+        rooms={liveRooms}
+        onSpectateRoom={onSpectateRoom}
+        onRefreshRooms={onRefreshLiveRooms || (() => {})}
+        playerName={playerName}
+        playerAvatar={selectedAvatar}
       />
     </div>
   );

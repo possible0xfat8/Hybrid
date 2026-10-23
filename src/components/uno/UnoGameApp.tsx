@@ -35,9 +35,11 @@ import { ConnectWalletModal } from './ConnectWalletModal';
 import { AirdropModal } from './AirdropModal';
 import { AirdropTourToast } from './AirdropTourToast';
 import { NotificationsModal } from './NotificationsModal';
+import { SpectatorRoomsModal } from './SpectatorRoomsModal';
 import { fetchTokenBalance, formatTokenAmount, CRAZY8_TOKEN_SYMBOL } from '@/lib/uno/token';
 import {
   WalletState,
+  formatAddress,
   getInjectedProvider,
   getActiveProvider,
   switchOrAddHemiNetwork,
@@ -83,6 +85,7 @@ import {
   Gift,
   LayoutDashboard,
   ArrowLeft,
+  Tv,
 } from 'lucide-react';
 import { UserAvatar } from './UserAvatar';
 
@@ -342,6 +345,7 @@ export default function App() {
 
   // User Notifications state
   const [isNotificationsOpen, setIsNotificationsOpen] = useState<boolean>(false);
+  const [isSpectatorModalOpen, setIsSpectatorModalOpen] = useState<boolean>(false);
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
 
   const fetchNotifications = async (userId: string) => {
@@ -1040,6 +1044,12 @@ export default function App() {
     // Public room updates broadcast from server
     s.on('rooms:public_list', (rooms: PublicRoomSummary[]) => {
       setLiveRooms(rooms);
+    });
+
+    s.on('rooms:updated', ({ rooms }: { rooms: PublicRoomSummary[] }) => {
+      if (Array.isArray(rooms)) {
+        setLiveRooms(rooms);
+      }
     });
 
     setSocket(s);
@@ -1982,8 +1992,8 @@ export default function App() {
   }, [gameState?.players, account?.id, wallet.address]);
 
   const myPlayerId = myPlayer?.id || account?.id || '';
-  // CRITICAL FIX: Seated players are NEVER spectators! Spectator mode only applies if user has no player seat at the table
-  const isSpectator = !myPlayer && (!!gameState?.isSpectator || !account);
+  // Seated players are active competitors. Any observer without a seat at the table is a spectator.
+  const isSpectator = !myPlayer;
   const isMyTurn = !isSpectator && !!myPlayer && (
     gameState?.currentTurnPlayerId === myPlayer.id ||
     gameState?.currentTurnPlayerId === myPlayerId
@@ -2043,24 +2053,50 @@ export default function App() {
     >
       {/* Top Spectator Banner if in spectator mode */}
       {isSpectator && gameState && (
-        <div className="w-full bg-[#0C0F14] border-b border-slate-800 px-3 sm:px-4 py-1.5 flex items-center justify-between text-xs text-slate-300 z-30 shadow-sm shrink-0">
-          <div className="flex items-center gap-2 font-black tracking-wide">
-            <Eye className="w-4 h-4 text-[#FF4600] animate-pulse" />
-            <span className="text-white text-xs sm:text-sm">LIVE SPECTATOR</span>
-            <span className="hidden sm:inline-block text-orange-300/80 font-normal">
-              • Room <strong className="text-[#FF4600] font-mono">{gameState.roomCode}</strong>
+        <div className="w-full bg-gradient-to-r from-red-950/80 via-[#0C0F14] to-purple-950/80 border-b border-red-500/30 px-3 sm:px-6 py-2 flex items-center justify-between text-xs text-slate-300 z-30 shadow-lg shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 font-black tracking-wide min-w-0">
+            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500/40 text-red-300 text-[10px] sm:text-xs font-mono font-bold shrink-0">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              <span>JUDGE &amp; STREAMER CAM</span>
             </span>
-            <span className="px-1.5 py-0.5 rounded-full bg-slate-800 text-slate-300 font-bold border border-slate-700 text-[10px]">
-              {gameState.spectatorCount || 1} Watching
+
+            <span className="hidden sm:inline-flex items-center gap-1 text-slate-300 font-mono text-xs">
+              <span>Room</span>
+              <strong className="text-[#FF4600] font-bold">#{gameState.roomCode}</strong>
+            </span>
+
+            {gameState.escrowPot?.amount && (
+              <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 font-mono text-[10px]">
+                <Coins className="w-3 h-3 text-[#FF4600]" />
+                <span>{gameState.escrowPot.amount} $CRAZY8 POT</span>
+              </span>
+            )}
+
+            <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-bold border border-purple-500/40 text-[10px] flex items-center gap-1 shrink-0">
+              <Eye className="w-3 h-3 text-purple-400" />
+              <span>{gameState.spectatorCount || 1} Watching</span>
             </span>
           </div>
 
-          <button
-            onClick={handleLeaveRoom}
-            className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-bold transition-all active:scale-95"
-          >
-            Leave
-          </button>
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <button
+              onClick={() => setIsSpectatorModalOpen(true)}
+              className="px-2.5 sm:px-3 py-1 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] text-white border border-white/[0.1] text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+              title="Browse other active matches"
+            >
+              <Tv className="w-3.5 h-3.5 text-[#FF4600]" />
+              <span className="hidden xs:inline">Switch Game</span>
+            </button>
+
+            <button
+              onClick={handleLeaveRoom}
+              className="px-2.5 sm:px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-bold transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+              title="Return to Arcade Lobby"
+            >
+              <LogOut className="w-3.5 h-3.5 text-rose-400" />
+              <span>Exit Cam</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -2246,6 +2282,29 @@ export default function App() {
               <Volume2 className="w-4 h-4 text-emerald-400" />
             )}
           </button>
+
+          {/* Spectator Mode: Switch Game & Leave */}
+          {gameState && isSpectator && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={() => setIsSpectatorModalOpen(true)}
+                className="flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-white border border-white/[0.08] text-xs font-bold transition-all cursor-pointer"
+                title="Browse all active games"
+              >
+                <Tv className="w-3.5 h-3.5 text-[#FF4600]" />
+                <span className="hidden sm:inline">Browse</span>
+              </button>
+
+              <button
+                onClick={handleLeaveRoom}
+                className="flex items-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-bold transition-all cursor-pointer active:scale-95 shrink-0"
+                title="Exit Spectator Cam"
+              >
+                <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                <span className="hidden sm:inline">Exit Cam</span>
+              </button>
+            </div>
+          )}
 
           {/* In Lobby: Quit button */}
           {gameState && gameState.status === 'lobby' && !isSpectator && (
@@ -2502,33 +2561,54 @@ export default function App() {
 
             {/* If Spectator: Show Spectator Arena Bottom Bar */}
             {isSpectator ? (
-              <div className="w-full max-w-2xl flex flex-col items-center gap-3 p-3 sm:p-5 rounded-3xl bg-slate-900/90 border-2 border-purple-500/30 backdrop-blur-md shadow-2xl mt-2 sm:mt-4 z-20 animate-in fade-in slide-in-from-bottom-3 duration-300 shrink-0">
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400">
-                      <Eye className="w-4 h-4 animate-pulse" />
+              <div className="w-full max-w-3xl flex flex-col items-center gap-2.5 p-3 sm:p-4 rounded-3xl bg-slate-900/95 border border-purple-500/30 backdrop-blur-md shadow-2xl mt-2 sm:mt-3 z-20 animate-in fade-in slide-in-from-bottom-3 duration-300 shrink-0">
+                <div className="flex flex-col sm:flex-row items-center justify-between w-full gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-red-600 via-[#FF4600] to-purple-600 flex items-center justify-center text-white shadow-md shadow-red-500/20 shrink-0">
+                      <Tv className="w-4 h-4" />
                     </div>
-                    <div>
-                      <div className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                        <span>Spectator Grandstand</span>
+                    <div className="min-w-0">
+                      <div className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2 flex-wrap">
+                        <span>Broadcast Cam</span>
                         <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-bold">
                           {gameState.spectatorCount || 1} Watching
                         </span>
+                        {(() => {
+                          const leader = [...(gameState.players || [])].sort((a, b) => (a.cardCount ?? 99) - (b.cardCount ?? 99))[0];
+                          if (leader && gameState.status === 'playing') {
+                            return (
+                              <span className="hidden xs:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-mono">
+                                <span>🏆 Leader:</span>
+                                <strong className="text-white">{leader.name}</strong>
+                                <span>({leader.cardCount} cards)</span>
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                       </div>
-                      <div className="text-[11px] text-slate-400">
-                        Live match view • Cheering and reactions enabled
+                      <div className="text-[11px] text-slate-400 truncate">
+                        Non-custodial observation cam • Send live cheers and reactions
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <ReactionWheel onSendEmote={handleSendEmote} />
                     <button
+                      onClick={() => setIsSpectatorModalOpen(true)}
+                      className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/[0.08] text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                      title="Switch to another live table"
+                    >
+                      <Tv className="w-3.5 h-3.5 text-[#FF4600]" />
+                      <span className="hidden xs:inline">Tables</span>
+                    </button>
+                    <button
                       onClick={handleToggleChat}
-                      className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-purple-600/30 transition-all"
+                      className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-purple-600/30 transition-all cursor-pointer"
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
-                      <span>Live Chat</span>
+                      <span>Chat</span>
                     </button>
                   </div>
                 </div>
@@ -3121,6 +3201,17 @@ export default function App() {
         user={inspectProfile}
         currentUserAddress={wallet.address}
         currentUserId={account?.id}
+      />
+
+      {/* Spectator Match Browser Modal */}
+      <SpectatorRoomsModal
+        isOpen={isSpectatorModalOpen}
+        onClose={() => setIsSpectatorModalOpen(false)}
+        rooms={liveRooms}
+        onSpectateRoom={handleSpectateRoom}
+        onRefreshRooms={() => refreshLiveRooms()}
+        playerName={account?.name || (wallet.address ? formatAddress(wallet.address) : 'Spectator')}
+        playerAvatar={account?.avatar || '👁️'}
       />
     </div>
   );

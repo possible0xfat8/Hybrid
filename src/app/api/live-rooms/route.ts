@@ -102,6 +102,20 @@ const BOT_PRACTICE_ROOMS = [
 ];
 
 export async function GET() {
+  const port = process.env.PORT || process.env.SERVER_PORT || '3000';
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/uno/live-rooms`, {
+      cache: 'no-store',
+      headers: { 'Accept': 'application/json' },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.rooms && Array.isArray(data.rooms) && data.rooms.length > 0) {
+        return NextResponse.json({ rooms: data.rooms });
+      }
+    }
+  } catch {}
+
   return NextResponse.json({
     rooms: BOT_PRACTICE_ROOMS,
   });

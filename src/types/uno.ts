@@ -134,11 +134,14 @@ export interface PublicRoomSummary {
     name: string;
     avatar: string;
     isBot?: boolean;
+    cardCount?: number;
   }[];
   activeColor: CardColor | null;
   topDiscardCard?: Card | null;
   escrowPot: EscrowPotInfo;
   isQuickMatch?: boolean;
+  currentTurnPlayerId?: string | null;
+  turnTimeRemaining?: number;
 }
 
 export interface GameState {

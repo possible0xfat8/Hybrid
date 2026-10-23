@@ -73,6 +73,12 @@ export function setupUnoNamespace(unoIo: Namespace, roomManager: RoomManager) {
         const sanitized = room.getSanitizedStateForPlayer(player.id);
         socket.emit('game:state', sanitized);
         if (typeof callback === 'function') callback({ success: true, gameState: sanitized });
+      } else if (room) {
+        const spectator = Array.from(room.spectators.values()).find(s => s.socketId === socket.id);
+        const specId = spectator ? spectator.id : socket.id;
+        const sanitized = room.getSanitizedStateForPlayer(specId);
+        socket.emit('game:state', sanitized);
+        if (typeof callback === 'function') callback({ success: true, gameState: sanitized });
       } else {
         if (typeof callback === 'function') callback({ success: false });
       }

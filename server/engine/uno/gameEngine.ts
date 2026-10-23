@@ -1208,7 +1208,7 @@ export class GameRoom {
       },
       settlementSignature: this.settlementSignature,
       spectatorCount: this.spectators.size,
-      isSpectator: !isTargetSeatedPlayer && this.spectators.has(targetPlayerId),
+      isSpectator: !isTargetSeatedPlayer,
     };
   }
 }

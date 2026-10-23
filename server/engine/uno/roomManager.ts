@@ -758,11 +758,12 @@ export class RoomManager {
     this.accountToRoomId.set(accountId, room.roomId);
 
     this.broadcastRoomState(room);
+    this.broadcastPublicRooms();
     return { success: true, room };
   }
 
   public handleLeaveRoom(accountId: string, socketId?: string, force: boolean = false): boolean {
-    const roomId = this.accountToRoomId.get(accountId);
+    const roomId = this.accountToRoomId.get(accountId) || (socketId ? this.socketToRoomId.get(socketId) : undefined);
     if (!roomId) return true;
 
     const room = this.rooms.get(roomId);
@@ -783,9 +784,15 @@ export class RoomManager {
       this.socketToAccountId.delete(socketId);
     }
 
-    if (room.spectators.has(accountId)) {
-      room.removeSpectator(accountId);
+    // Check if spectator by accountId or socketId
+    let specToRemove = room.spectators.get(accountId);
+    if (!specToRemove && socketId) {
+      specToRemove = Array.from(room.spectators.values()).find(s => s.socketId === socketId);
+    }
+    if (specToRemove) {
+      room.removeSpectator(specToRemove.id);
       this.broadcastRoomState(room);
+      this.broadcastPublicRooms();
       return true;
     }
 
@@ -862,8 +869,9 @@ export class RoomManager {
           room.removeSpectator(accountId);
           this.accountToRoomId.delete(accountId);
           this.broadcastRoomState(room);
+          this.broadcastPublicRooms();
         }
-      }, 120000);
+      }, 8000);
       this.disconnectTimers.set(accountId, timer);
       return;
     }
@@ -1170,6 +1178,8 @@ export class RoomManager {
   public getPublicRooms(): PublicRoomSummary[] {
     return Array.from(this.rooms.values()).map(room => {
       const host = room.players.find(p => p.isHost) || room.players[0];
+      const curPlayer = room.getCurrentPlayer();
+      const potAmount = room.getPotAmount() || (room.players.length * parseFloat(room.buyInAmount || '0'));
       return {
         roomId: room.roomId,
         roomCode: room.roomCode,
@@ -1177,8 +1187,8 @@ export class RoomManager {
         playerCount: room.players.length,
         maxPlayers: 5,
         spectatorCount: room.spectators.size,
-        mode: room.customMode || 'Classic',
-        description: room.description || 'The original. 2-4 players.',
+        mode: room.customMode || (room.isQuickMatch ? 'Quick Match' : 'Classic'),
+        description: room.description || (room.isQuickMatch ? 'Contest match (2-5 players)' : 'The original. 2-5 players.'),
         hostName: host ? host.name : 'Host',
         hostAvatar: host ? host.avatar : '🦊',
         players: room.players.map(p => ({
@@ -1186,17 +1196,29 @@ export class RoomManager {
           name: p.name,
           avatar: p.avatar,
           isBot: p.isBot,
+          cardCount: p.cardCount,
         })),
         activeColor: room.activeColor,
         topDiscardCard: room.getTopDiscard(),
         escrowPot: {
-          amount: (room.players.length * parseFloat(room.buyInAmount || '0')).toFixed(3),
+          amount: potAmount.toFixed(3),
           currency: room.currency,
           buyInAmount: room.buyInAmount,
         },
         isQuickMatch: room.isQuickMatch,
+        currentTurnPlayerId: curPlayer?.id || null,
+        turnTimeRemaining: room.turnTimeRemaining,
       };
     });
+  }
+
+  public broadcastPublicRooms(): void {
+    try {
+      const rooms = this.getPublicRooms();
+      this.io.emit('rooms:updated', { rooms });
+    } catch (err) {
+      console.warn('[RoomManager] Failed to broadcast public rooms update:', err);
+    }
   }
 
   public getAllRooms(): GameRoom[] {
