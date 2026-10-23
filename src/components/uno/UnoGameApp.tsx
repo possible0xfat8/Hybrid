@@ -2057,7 +2057,7 @@ export default function App() {
           <div className="flex items-center gap-2 sm:gap-3 font-black tracking-wide min-w-0">
             <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500/40 text-red-300 text-[10px] sm:text-xs font-mono font-bold shrink-0">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              <span>JUDGE &amp; STREAMER CAM</span>
+              <span>SPECTATING</span>
             </span>
 
             <span className="hidden sm:inline-flex items-center gap-1 text-slate-300 font-mono text-xs">
@@ -2569,7 +2569,7 @@ export default function App() {
                     </div>
                     <div className="min-w-0">
                       <div className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2 flex-wrap">
-                        <span>Broadcast Cam</span>
+                        <span>Spectating</span>
                         <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-bold">
                           {gameState.spectatorCount || 1} Watching
                         </span>
@@ -2586,9 +2586,6 @@ export default function App() {
                           }
                           return null;
                         })()}
-                      </div>
-                      <div className="text-[11px] text-slate-400 truncate">
-                        Non-custodial observation cam • Send live cheers and reactions
                       </div>
                     </div>
                   </div>

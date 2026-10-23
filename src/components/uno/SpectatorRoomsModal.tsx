@@ -5,19 +5,13 @@ import {
   Eye,
   Tv,
   Radio,
-  Search,
   RefreshCw,
   X,
   Users,
   Coins,
-  Shield,
-  Clock,
   ChevronRight,
   Copy,
   Check,
-  Flame,
-  ArrowRight,
-  Sparkles,
 } from 'lucide-react';
 import { PublicRoomSummary } from '../../types/uno';
 import { UserAvatar } from './UserAvatar';
@@ -119,12 +113,9 @@ export function SpectatorRoomsModal({
                 </h2>
                 <span className="px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500/40 text-red-300 font-mono text-[9px] sm:text-[10px] font-bold flex items-center gap-1">
                   <Radio className="w-2.5 h-2.5 animate-pulse text-red-400" />
-                  <span>JUDGE / STREAMER CAM</span>
+                  <span>LIVE</span>
                 </span>
               </div>
-              <p className="text-[10px] sm:text-xs text-slate-400 truncate">
-                Official non-custodial live match view for tournament judges and broadcasters
-              </p>
             </div>
           </div>
 
@@ -149,28 +140,6 @@ export function SpectatorRoomsModal({
         </div>
 
         {/* ========================================================= */}
-        {/* SUB-HEADER: Special Note for Judges & Streamers           */}
-        {/* ========================================================= */}
-        <div className="px-3.5 sm:px-6 pt-3.5 sm:pt-4 pb-2 shrink-0">
-          <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-red-500/10 via-purple-500/10 to-[#FF4600]/10 border border-red-500/30 flex items-start gap-2.5 sm:gap-3 shadow-md">
-            <div className="w-8 h-8 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center shrink-0 mt-0.5">
-              <Shield className="w-4 h-4 text-[#FF4600]" />
-            </div>
-            <div className="text-xs text-slate-200 min-w-0">
-              <div className="font-black text-white text-[11px] sm:text-xs flex items-center gap-2 flex-wrap mb-0.5">
-                <span className="text-amber-300">NOTE FOR STREAMING JUDGES:</span>
-                <span className="px-1.5 py-0.2 rounded bg-amber-400/20 text-amber-200 text-[9px] font-mono font-bold">
-                  Card Hand Protection Active
-                </span>
-              </div>
-              <p className="text-[10px] sm:text-[11px] text-slate-300 leading-relaxed">
-                Use this <strong className="text-white">Spectator Mode</strong> on your livestream or screen share! It provides a full overhead table perspective with live pot escrows, turn timers, and discard pile moves, while <strong className="text-amber-300">strictly masking competitors&apos; card hands</strong> so you won&apos;t leak secrets or risk your chips.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* ========================================================= */}
         {/* DIRECT CODE JOIN & FILTERS                                */}
         {/* ========================================================= */}
         <div className="px-3.5 sm:px-6 py-2.5 flex flex-col sm:flex-row gap-2.5 sm:items-center justify-between border-b border-white/[0.04] shrink-0">
@@ -181,7 +150,7 @@ export function SpectatorRoomsModal({
                 type="text"
                 value={directCodeInput}
                 onChange={(e) => setDirectCodeInput(e.target.value.toUpperCase())}
-                placeholder="Enter 4-digit code..."
+                placeholder="Enter room code..."
                 maxLength={6}
                 className="w-full bg-[#08090C] border border-white/[0.08] focus:border-[#FF4600]/70 rounded-xl px-3 py-1.5 text-xs font-mono font-bold text-white placeholder-slate-600 uppercase outline-none transition-colors"
               />
@@ -206,7 +175,7 @@ export function SpectatorRoomsModal({
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              All Matches ({rooms.length})
+              All ({rooms.length})
             </button>
             <button
               onClick={() => setFilterMode('playing')}
@@ -217,7 +186,7 @@ export function SpectatorRoomsModal({
               }`}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-              <span>Live Playing ({livePlayingCount})</span>
+              <span>Playing ({livePlayingCount})</span>
             </button>
             <button
               onClick={() => setFilterMode('lobby')}
@@ -227,7 +196,7 @@ export function SpectatorRoomsModal({
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              In Lobby ({lobbyWaitingCount})
+              Lobby ({lobbyWaitingCount})
             </button>
           </div>
         </div>
@@ -280,14 +249,14 @@ export function SpectatorRoomsModal({
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {isPlaying ? (
-                          <span className="px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500/40 text-red-300 text-[10px] font-mono font-bold flex items-center gap-1 animate-pulse">
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                            <span>LIVE MATCH</span>
+                          <span className="px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500/40 text-red-300 text-[10px] font-mono font-bold flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                            <span>LIVE</span>
                           </span>
                         ) : (
                           <span className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-mono font-bold flex items-center gap-1">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                            <span>WAITING IN LOBBY</span>
+                            <span>LOBBY</span>
                           </span>
                         )}
 
@@ -334,7 +303,7 @@ export function SpectatorRoomsModal({
                         <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center justify-between">
                           <span className="flex items-center gap-1">
                             <Users className="w-3 h-3" />
-                            <span>Contestants ({room.playerCount}/5)</span>
+                            <span>Players ({room.playerCount}/5)</span>
                           </span>
                           {room.spectatorCount > 0 && (
                             <span className="flex items-center gap-1 text-purple-300 font-mono lowercase">
@@ -388,7 +357,7 @@ export function SpectatorRoomsModal({
                         className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-red-600 via-[#FF4600] to-orange-500 hover:brightness-110 active:scale-95 text-white font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-red-600/20"
                       >
                         <Eye className="w-3.5 h-3.5" />
-                        <span>Spectate Match</span>
+                        <span>Watch</span>
                         <ChevronRight className="w-3 h-3" />
                       </button>
                     </div>
@@ -405,7 +374,7 @@ export function SpectatorRoomsModal({
         <div className="p-3 sm:p-4 border-t border-white/[0.06] bg-[#08090C] flex items-center justify-between text-xs text-slate-400 shrink-0">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-[11px] font-mono">Real-time socket observer synchronized</span>
+            <span className="text-[11px] font-mono text-slate-400">Live</span>
           </div>
           <button
             onClick={onClose}

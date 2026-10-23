@@ -347,21 +347,17 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         )}
         {/* Spectator Notice */}
         {isSpectator && (
-          <div className="mb-4 sm:mb-5 p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-red-500/15 via-[#FF4600]/15 to-purple-500/15 border border-red-500/40 flex items-center justify-between gap-2 sm:gap-3">
+          <div className="mb-4 sm:mb-5 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-gradient-to-r from-red-500/15 via-[#FF4600]/10 to-purple-500/15 border border-red-500/30 flex items-center justify-between gap-2 sm:gap-3">
             <div className="flex items-center gap-2 sm:gap-2.5">
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-red-500/20 flex items-center justify-center text-red-400 shrink-0">
                 <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-pulse" />
               </div>
-              <div>
-                <div className="text-[11px] sm:text-xs font-black text-white flex items-center gap-1.5">
-                  <span>Spectating Lobby</span>
-                  <span className="px-1.5 py-0.5 rounded bg-red-500/30 text-red-200 text-[9px] sm:text-[10px] font-bold">
-                    Judge / Streamer Cam
-                  </span>
-                </div>
-                <div className="text-[10px] sm:text-[11px] text-slate-300">
-                  You are observing this lobby in real time. Player card hands remain masked when the game starts.
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs sm:text-sm font-black text-white">Spectating Lobby</span>
+                <span className="px-1.5 py-0.5 rounded-full bg-red-500/20 border border-red-500/30 text-red-300 font-mono text-[9px] sm:text-[10px] font-bold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                  LIVE
+                </span>
               </div>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
@@ -1091,7 +1087,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               <span className="text-[10px] font-normal text-slate-400 group-hover:text-slate-200">Browse &rarr;</span>
             </div>
             <div className="text-[11px] text-slate-400 mt-0.5">
-              {displayTables.length > 0 ? `${displayTables.length} active match${displayTables.length > 1 ? 'es' : ''} • Judge Cam` : 'Open spectator hub'}
+              {displayTables.length > 0 ? `${displayTables.length} active match${displayTables.length > 1 ? 'es' : ''}` : 'Watch active matches'}
             </div>
           </div>
 
@@ -1231,7 +1227,6 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 </div>
                 <div>
                   <h2 className="text-sm sm:text-base font-black text-white">Open Tables</h2>
-                  <p className="text-[10px] sm:text-xs text-slate-400">Join a public game and start playing now.</p>
                 </div>
               </div>
 
@@ -1241,10 +1236,10 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                   type="button"
                   onClick={() => setIsSpectatorModalOpen(true)}
                   className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 hover:text-white text-[10px] sm:text-xs font-bold transition-all cursor-pointer"
-                  title="Open Spectator Hub to view all live games"
+                  title="Open Spectator Hub"
                 >
                   <Eye className="w-3.5 h-3.5 text-red-400 animate-pulse" />
-                  <span>Spectate Hub</span>
+                  <span>Spectate</span>
                 </button>
 
                 {/* Sort by dropdown */}
@@ -1346,7 +1341,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                           type="button"
                           onClick={() => onSpectateRoom(table.code, playerName, selectedAvatar)}
                           className="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] hover:border-red-500/40 text-slate-300 hover:text-white font-bold text-[10px] sm:text-xs transition-all active:scale-95 flex items-center gap-1 cursor-pointer shrink-0"
-                          title="Spectate this match as a streamer/judge"
+                          title="Spectate match"
                         >
                           <Eye className="w-3.5 h-3.5 text-red-400" />
                           <span className="hidden xs:inline">Watch</span>
