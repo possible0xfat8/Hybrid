@@ -8,6 +8,11 @@ import { getConnect4Socket, disconnectConnect4Socket } from '@/lib/socket/socket
 import { useConnect4Stats } from '@/hooks/useConnect4Stats';
 import { c4Audio } from '@/lib/connect4/audio';
 import { Connect4Board, CellValue, ROWS, COLS } from './Connect4Board';
+import {
+  createLocalConnect4Room,
+  executeLocalDrop,
+  getBotBestMove,
+} from '@/lib/connect4/localConnect4Engine';
 import { WalletConnect } from '@/components/shared/WalletConnect';
 import {
   Trophy,
@@ -100,6 +105,7 @@ export default function Connect4GameApp() {
   const [activeTab, setActiveTab] = useState<'quick' | 'bot' | 'private'>('quick');
   const [secondsRemaining, setSecondsRemaining] = useState(20);
   const [isGameOverMinimized, setIsGameOverMinimized] = useState(false);
+  const isLocalMatchRef = useRef<boolean>(false);
 
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -270,33 +276,76 @@ export default function Connect4GameApp() {
 
   // Lobby Actions
   const handleQuickMatch = () => {
-    if (!socket) return;
     c4Audio.playClick();
-    socket.emit('join_matchmaking', {
-      address: userAddress || `0xGuest_${Math.random().toString(36).substring(2, 6)}`,
-      displayName: userAddress ? `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}` : 'Hemi Challenger',
-      avatar: '🦊',
-    });
+    const launchLocalQuick = () => {
+      isLocalMatchRef.current = true;
+      const localRoom = createLocalConnect4Room(userAddress, undefined, '🦊', 'Challenger Neo', '⚡');
+      setRoomState(localRoom);
+      setMatchmakingSearching(false);
+      c4Audio.playDrop();
+    };
+
+    if (socket && socket.connected) {
+      setMatchmakingSearching(true);
+      const timer = setTimeout(() => {
+        launchLocalQuick();
+      }, 3000);
+
+      socket.emit('join_matchmaking', {
+        address: userAddress || `0xGuest_${Math.random().toString(36).substring(2, 6)}`,
+        displayName: userAddress ? `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}` : 'Hemi Challenger',
+        avatar: '🦊',
+      });
+    } else {
+      setMatchmakingSearching(true);
+      setTimeout(() => {
+        launchLocalQuick();
+      }, 1000);
+    }
   };
 
   const handleCancelMatchmaking = () => {
-    if (!socket) return;
     c4Audio.playClick();
-    socket.emit('cancel_matchmaking');
+    setMatchmakingSearching(false);
+    if (socket && socket.connected) {
+      socket.emit('cancel_matchmaking');
+    }
   };
 
   const handlePlayBot = () => {
-    if (!socket) return;
     c4Audio.playClick();
-    socket.emit('play_vs_bot', {
-      address: userAddress || `0xGuest_${Math.random().toString(36).substring(2, 6)}`,
-      displayName: userAddress ? `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}` : 'Hemi Challenger',
-      avatar: '🦊',
-    });
+    const launchLocal = () => {
+      isLocalMatchRef.current = true;
+      const localRoom = createLocalConnect4Room(userAddress, undefined, '🦊', 'Hemi Bot ⚡', '🤖');
+      setRoomState(localRoom);
+      setMatchmakingSearching(false);
+      c4Audio.playDrop();
+    };
+
+    if (socket && socket.connected) {
+      let answered = false;
+      setTimeout(() => {
+        if (!answered) {
+          answered = true;
+          launchLocal();
+        }
+      }, 1200);
+
+      socket.emit('play_vs_bot', {
+        address: userAddress || `0xGuest_${Math.random().toString(36).substring(2, 6)}`,
+        displayName: userAddress ? `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}` : 'Hemi Challenger',
+        avatar: '🦊',
+      });
+    } else {
+      launchLocal();
+    }
   };
 
   const handleCreatePrivateRoom = () => {
-    if (!socket) return;
+    if (!socket || !socket.connected) {
+      handlePlayBot();
+      return;
+    }
     c4Audio.playClick();
     socket.emit('create_room', {
       address: userAddress || `0xGuest_${Math.random().toString(36).substring(2, 6)}`,
@@ -307,7 +356,11 @@ export default function Connect4GameApp() {
 
   const handleJoinPrivateRoom = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!socket || !joinCodeInput.trim()) return;
+    if (!joinCodeInput.trim()) return;
+    if (!socket || !socket.connected) {
+      handlePlayBot();
+      return;
+    }
     c4Audio.playClick();
     socket.emit('join_room', {
       roomCode: joinCodeInput.trim(),
@@ -319,7 +372,34 @@ export default function Connect4GameApp() {
 
   // In-Game Actions
   const handleDropDisc = (col: number) => {
-    if (!socket || !roomState) return;
+    if (!roomState) return;
+
+    if (isLocalMatchRef.current) {
+      if (roomState.status !== 'playing' || roomState.currentTurn !== 1) return;
+      const res = executeLocalDrop(roomState, 1, col);
+      if (!res.success) return;
+
+      c4Audio.playDrop();
+      setRoomState(res.newState);
+
+      if (res.newState.status === 'playing' && res.newState.currentTurn === 2) {
+        setTimeout(() => {
+          setRoomState((latest) => {
+            if (!latest || latest.status !== 'playing' || latest.currentTurn !== 2) return latest;
+            const botCol = getBotBestMove(latest.board, 2);
+            const botRes = executeLocalDrop(latest, 2, botCol);
+            if (botRes.success) {
+              c4Audio.playDrop();
+              return botRes.newState;
+            }
+            return latest;
+          });
+        }, 650);
+      }
+      return;
+    }
+
+    if (!socket) return;
     socket.emit('drop_disc', {
       roomCode: roomState.roomCode,
       col,
@@ -327,12 +407,28 @@ export default function Connect4GameApp() {
   };
 
   const handleRematch = () => {
+    if (isLocalMatchRef.current && roomState) {
+      c4Audio.playClick();
+      const opp = roomState.players.find((p) => p.playerNumber === 2);
+      const fresh = createLocalConnect4Room(userAddress, undefined, '🦊', opp?.displayName || 'Hemi Bot ⚡', opp?.avatar || '🤖');
+      setRoomState(fresh);
+      return;
+    }
     if (!socket || !roomState) return;
     c4Audio.playClick();
     socket.emit('rematch', { roomCode: roomState.roomCode });
   };
 
   const handleForfeit = () => {
+    if (isLocalMatchRef.current && roomState) {
+      c4Audio.playClick();
+      setRoomState({
+        ...roomState,
+        status: 'game_over',
+        winner: 2,
+      });
+      return;
+    }
     if (!socket || !roomState) return;
     if (confirm('Are you sure you want to forfeit this match? Your opponent will take the win.')) {
       c4Audio.playClick();
@@ -342,6 +438,7 @@ export default function Connect4GameApp() {
 
   const handleLeaveRoom = () => {
     c4Audio.playClick();
+    isLocalMatchRef.current = false;
     setRoomState(null);
     setChatMessages([]);
   };

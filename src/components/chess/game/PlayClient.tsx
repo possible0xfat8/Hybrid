@@ -8,7 +8,7 @@ import { OnlineUsers } from '@/components/chess/game/OnlineUsers';
 import { LiveGames } from '@/components/chess/game/LiveGames';
 import { SpectatorView } from '@/components/chess/game/SpectatorView';
 import { getBackendUrl } from '@/lib/chess/config';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Socket } from 'socket.io-client';
 import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
@@ -24,7 +24,7 @@ import {
 } from '@/components/chess/game/Lobby';
 import { useUserStats, useMatchHistory, DEFAULT_ELO } from '@/hooks/useUserStats';
 import { usePlayerStats } from '@/hooks/useHemiChessElo';
-import { AlertTriangle, Crown, Scale, Flag, Handshake, List, BookOpen, Eye, RotateCcw, Trophy } from 'lucide-react';
+import { AlertTriangle, Crown, Scale, Flag, Handshake, List, BookOpen, Eye, RotateCcw, Trophy, Bot } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   playMoveSound,
@@ -139,6 +139,7 @@ export function PlayClient() {
   const [moveHistory, setMoveHistory] = useState<any[]>([]);
   const [eloChange, setEloChange] = useState<number | null>(null);
   const [isGameOverMinimized, setIsGameOverMinimized] = useState<boolean>(false);
+  const isBotGameRef = useRef<boolean>(false);
 
   // Get live user stats from database (source of truth)
   const { data: dbStats, isLoading: isLoadingStats } = useUserStats();
@@ -619,43 +620,66 @@ export function PlayClient() {
     }
   }, [isConnected, address, getDisplayName]);
 
-  // Find match
+  // Find match with offline fallback
+  const startLocalBotGame = (color: 'white' | 'black' = 'white') => {
+    isBotGameRef.current = true;
+    const initialFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+    const initialGame = new Chess(initialFen);
+    setGameId(`bot_game_${Date.now()}`);
+    setOrientation(color);
+    setMyTurn(color === 'white');
+    setOpponentName('Hemi Chess Bot');
+    setOpponentElo(1250);
+    setOpponentAvatar('🤖');
+    setMyGameElo(userStats.elo || 1200);
+    setMyAvatar(myAvatar || '🦊');
+    setFen(initialFen);
+    setGame(initialGame);
+    setMyTime(timeControl?.ms ?? 600000);
+    setOpponentTime(timeControl?.ms ?? 600000);
+    setMoveHistory([]);
+    setLastMove(null);
+    setDrawOffered(false);
+    setOpponentOfferedDraw(false);
+    setGameOverMsg('');
+    setEloChange(null);
+    setIsGameOverMinimized(false);
+    setGameState('playing');
+    setStatus(`Playing as ${color} vs Hemi Chess Bot`);
+  };
+
   const handleFindMatch = () => {
-    // Require wallet connection for Web3 mode
     if (!isConnected || !address) {
-      setStatus('Please connect your wallet to play');
+      startLocalBotGame('white');
       return;
     }
 
-    if (!socket) {
-      console.error('[MATCH] Socket not initialized!');
-      setStatus('Connecting to server...');
+    if (!socket || !socket.connected) {
+      startLocalBotGame('white');
       return;
     }
 
     const displayName = getDisplayName();
-    console.log('[MATCH] Requesting match:', { 
-      playerId: address.toLowerCase(),
-      playerName: displayName,
-      socketConnected: socket.connected
-    });
-    
     setGameState('finding');
     setStatus('Finding opponent...');
-    
+
+    const fallbackTimer = setTimeout(() => {
+      startLocalBotGame('white');
+    }, 3000);
+
     socket.emit('find_match', { 
       playerId: address.toLowerCase(),
       walletAddress: address.toLowerCase(),
       playerName: displayName,
       timeControl: timeControl?.ms ?? 600000
     });
-
   };
 
   // Cancel matchmaking
   const handleCancelMatchmaking = () => {
-    if (!socket) return;
-    socket.emit('cancel_matchmaking');
+    if (socket && socket.connected) {
+      socket.emit('cancel_matchmaking');
+    }
     setGameState('menu');
   };
 
@@ -701,7 +725,62 @@ export function PlayClient() {
           playMoveSound();
         }
 
-        if (socket) {
+        if (isBotGameRef.current) {
+          setMyTurn(false);
+          setMoveHistory((prev) => [...prev, moveResult]);
+          setLastMove({ from: sourceSquare, to: targetSquare });
+
+          if (gameCopy.isGameOver()) {
+            const isCheckmate = gameCopy.isCheckmate();
+            setGameOverMsg(isCheckmate ? 'Checkmate! You won against Hemi Chess Bot!' : 'Stalemate / Draw!');
+            setGameState('finished');
+            return true;
+          }
+
+          // Schedule Bot counter-move
+          setTimeout(() => {
+            const botGame = new Chess(gameCopy.fen());
+            if (botGame.isGameOver()) return;
+
+            const moves = botGame.moves({ verbose: true });
+            if (moves.length === 0) return;
+
+            const captureMove = moves.find((m) => m.captured);
+            const checkMove = moves.find((m) => {
+              const test = new Chess(botGame.fen());
+              test.move(m);
+              return test.inCheck();
+            });
+            const chosenMove = captureMove || checkMove || moves[Math.floor(Math.random() * moves.length)];
+
+            const botResult = botGame.move(chosenMove);
+            if (botResult) {
+              setFen(botGame.fen());
+              setGame(botGame);
+              setMyTurn(true);
+              setLastMove({ from: botResult.from, to: botResult.to });
+              setMoveHistory((prev) => [...prev, botResult]);
+
+              if (botGame.inCheck()) {
+                playCheckSound();
+              } else if (botResult.captured) {
+                playCaptureSound();
+              } else {
+                playMoveSound();
+              }
+
+              if (botGame.isGameOver()) {
+                const isCheckmate = botGame.isCheckmate();
+                setGameOverMsg(isCheckmate ? 'Checkmate! Hemi Chess Bot won.' : 'Stalemate / Draw!');
+                setGameState('finished');
+              }
+            }
+          }, 600);
+
+          return true;
+        }
+
+        if (socket && socket.connected) {
           socket.emit('make_move', {
             gameId,
             move: {
@@ -751,6 +830,13 @@ export function PlayClient() {
 
   // Resign
   const handleResign = () => {
+    if (isBotGameRef.current) {
+      if (confirm('Are you sure you want to resign?')) {
+        setGameOverMsg('You resigned. Hemi Chess Bot won.');
+        setGameState('finished');
+      }
+      return;
+    }
     if (gameId && socket && confirm('Are you sure you want to resign?')) {
       socket.emit('resign', { gameId });
     }
@@ -758,6 +844,7 @@ export function PlayClient() {
 
   // Play again
   const handlePlayAgain = () => {
+    isBotGameRef.current = false;
     setGameState('menu');
     setGameId(null);
     setOrientation(null);
@@ -963,6 +1050,15 @@ export function PlayClient() {
                         >
                           ⚔️ Drop into Match
                         </button>
+
+                        <button
+                          onClick={() => startLocalBotGame('white')}
+                          className="mt-3 w-full rounded-xl border border-line bg-[var(--surface-strong)] px-6 py-3.5 text-ink font-bold hover:bg-[var(--surface-hover)] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                        >
+                          <Bot className="w-4 h-4 text-orange" />
+                          <span>Practice vs Computer (AI Bot)</span>
+                        </button>
+
                         <p className="mt-3 text-center text-xs text-ink-faint">
                           {timeControl?.label} {timeControl?.sub} • {userStats.elo} ELO rated
                         </p>
@@ -988,6 +1084,14 @@ export function PlayClient() {
                     <p className="mt-2 text-sm text-ink-muted">
                       Jump in with your Web3 wallet to record on-chain ratings and compete for glory.
                     </p>
+
+                    <button
+                      onClick={() => startLocalBotGame('white')}
+                      className="mt-5 w-full rounded-xl bg-orange hover:bg-orange-strong text-canvas px-6 py-3.5 font-bold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Bot className="w-4 h-4" />
+                      <span>Play vs Computer (Bot Practice)</span>
+                    </button>
                     <div className="surface-inset mt-6 space-y-2 p-4 text-left">
                       <div className="flex justify-between text-sm">
                         <span className="text-ink-faint">Network</span>

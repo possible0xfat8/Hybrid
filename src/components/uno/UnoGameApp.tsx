@@ -3,8 +3,16 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Socket } from 'socket.io-client';
 import { getUnoSocket } from '@/lib/socket/socketFactory';
-import { GameState, Card, CardColor, FloatingEmote, ChatMessage, PublicRoomSummary, GameInviteEvent, EnrichedFriend, UserNotification, isWildCard, isDefenseCard, isActionCard } from '@/types/uno';
+import { GameState, Player, Card, CardColor, FloatingEmote, ChatMessage, PublicRoomSummary, GameInviteEvent, EnrichedFriend, UserNotification, isWildCard, isDefenseCard, isActionCard } from '@/types/uno';
 import { soundEngine } from '@/lib/uno/audio';
+import {
+  createLocalLobby,
+  startLocalGame,
+  executePlayerCardMove,
+  executePlayerDrawMove,
+  executePlayerPassMove,
+  runBotStep,
+} from '@/lib/uno/localGameEngine';
 import { CardComponent } from './CardComponent';
 import { OpponentSeat } from './OpponentSeat';
 import { CenterTable } from './CenterTable';
@@ -272,6 +280,8 @@ export default function App() {
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'reconnecting' | 'offline'>('reconnecting');
   const [account, setAccount] = useState<AccountProfile | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
+  const localDrawPileRef = useRef<Card[]>([]);
+  const isLocalModeRef = useRef<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [emotes, setEmotes] = useState<FloatingEmote[]>([]);
   const [isMuted, setIsMuted] = useState(false);
@@ -813,6 +823,7 @@ export default function App() {
   useEffect(() => {
     const s = getUnoSocket();
     if (!s) return;
+    setSocket(s);
 
     if (s.connected) {
       setSocketConnected(true);
@@ -1041,6 +1052,27 @@ export default function App() {
       clearInterval(heartbeatInterval);
     };
   }, []);
+
+  // Autonomous Bot Turn Runner for practice tables and offline matches
+  useEffect(() => {
+    if (!isLocalModeRef.current || !gameState || gameState.status !== 'playing') return;
+
+    const currentTurnPlayer = gameState.players.find((p) => p.id === gameState.currentTurnPlayerId);
+    if (!currentTurnPlayer || !currentTurnPlayer.isBot) return;
+
+    const botTimer = setTimeout(() => {
+      if (!gameStateRef.current || gameStateRef.current.status !== 'playing') return;
+      const botRes = runBotStep(gameStateRef.current, localDrawPileRef.current);
+      if (botRes.played) {
+        localDrawPileRef.current = botRes.drawPile;
+        setGameState(botRes.state);
+        soundEngine.play('card_play');
+      }
+    }, 1100);
+
+    return () => clearTimeout(botTimer);
+  }, [gameState?.currentTurnPlayerId, gameState?.status]);
+
 
   // Synchronize profile and resume active session whenever wallet or account updates (without disconnecting socket!)
   useEffect(() => {
@@ -1331,7 +1363,6 @@ export default function App() {
       s = getUnoSocket();
       if (s) setSocket(s);
     }
-    if (!s) return;
 
     let activeAddress = address || wallet.address;
     let activeAccount = account;
@@ -1359,31 +1390,64 @@ export default function App() {
 
     if (!activeAddress || !activeAccount) return;
     setErrorMessage(null);
-    s.emit(
-      'room:join',
-      {
-        roomCode: roomCode.toUpperCase(),
-        accountId: activeAccount.id,
-        playerName: playerName || activeAccount.name,
+
+    const launchLocal = () => {
+      isLocalModeRef.current = true;
+      const localState = createLocalLobby(roomCode, {
+        name: playerName || activeAccount.name,
         avatar: avatar || activeAccount.avatar,
         address: activeAddress,
-      },
-      (res: any) => {
-        if (!res.success) {
-          setErrorMessage(res.error || 'Failed to join room');
-        } else {
-          setActiveRoomCode(res.roomCode);
-          if (res.gameState) {
-            setGameState(res.gameState);
-          }
-          setChatMessages([]);
-          const currentUrl = new URL(window.location.href);
-          currentUrl.searchParams.set('room', res.roomCode);
-          currentUrl.searchParams.delete('join');
-          window.history.replaceState({}, '', currentUrl.toString());
+      });
+      setActiveRoomCode(roomCode.toUpperCase());
+      setGameState(localState);
+      setChatMessages([]);
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.set('room', roomCode.toUpperCase());
+      currentUrl.searchParams.delete('join');
+      window.history.replaceState({}, '', currentUrl.toString());
+    };
+
+    if (s && s.connected) {
+      let answered = false;
+      const timeoutId = setTimeout(() => {
+        if (!answered) {
+          answered = true;
+          launchLocal();
         }
-      }
-    );
+      }, 1200);
+
+      s.emit(
+        'room:join',
+        {
+          roomCode: roomCode.toUpperCase(),
+          accountId: activeAccount.id,
+          playerName: playerName || activeAccount.name,
+          avatar: avatar || activeAccount.avatar,
+          address: activeAddress,
+        },
+        (res: any) => {
+          if (answered) return;
+          answered = true;
+          clearTimeout(timeoutId);
+          if (!res.success) {
+            launchLocal();
+          } else {
+            isLocalModeRef.current = false;
+            setActiveRoomCode(res.roomCode);
+            if (res.gameState) {
+              setGameState(res.gameState);
+            }
+            setChatMessages([]);
+            const currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.set('room', res.roomCode);
+            currentUrl.searchParams.delete('join');
+            window.history.replaceState({}, '', currentUrl.toString());
+          }
+        }
+      );
+    } else {
+      launchLocal();
+    }
   };
 
   // 1-Click Quick Match - joins open waiting room or creates one automatically
@@ -1393,7 +1457,6 @@ export default function App() {
       s = getUnoSocket();
       if (s) setSocket(s);
     }
-    if (!s) return;
 
     let activeAddress = wallet.address;
     let activeAccount = account;
@@ -1421,31 +1484,64 @@ export default function App() {
 
     if (!activeAddress || !activeAccount) return;
     setErrorMessage(null);
-    s.emit(
-      'room:quick_join',
-      {
-        playerName: activeAccount.name,
+
+    const launchLocalQuick = () => {
+      isLocalModeRef.current = true;
+      const localState = createLocalLobby('CLSC', {
+        name: activeAccount.name,
         avatar: activeAccount.avatar,
-        accountId: activeAccount.id,
-        userId: activeAccount.id,
         address: activeAddress,
-      },
-      (res: any) => {
-        if (!res.success) {
-          setErrorMessage(res.error || 'Failed to quick-join room');
-        } else {
-          setActiveRoomCode(res.roomCode);
-          if (res.gameState) {
-            setGameState(res.gameState);
-          }
-          setChatMessages([]);
-          const currentUrl = new URL(window.location.href);
-          currentUrl.searchParams.set('room', res.roomCode);
-          currentUrl.searchParams.delete('join');
-          window.history.replaceState({}, '', currentUrl.toString());
+      });
+      setActiveRoomCode('CLSC');
+      setGameState(localState);
+      setChatMessages([]);
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.set('room', 'CLSC');
+      currentUrl.searchParams.delete('join');
+      window.history.replaceState({}, '', currentUrl.toString());
+    };
+
+    if (s && s.connected) {
+      let answered = false;
+      const timeoutId = setTimeout(() => {
+        if (!answered) {
+          answered = true;
+          launchLocalQuick();
         }
-      }
-    );
+      }, 1200);
+
+      s.emit(
+        'room:quick_join',
+        {
+          playerName: activeAccount.name,
+          avatar: activeAccount.avatar,
+          accountId: activeAccount.id,
+          userId: activeAccount.id,
+          address: activeAddress,
+        },
+        (res: any) => {
+          if (answered) return;
+          answered = true;
+          clearTimeout(timeoutId);
+          if (!res.success) {
+            launchLocalQuick();
+          } else {
+            isLocalModeRef.current = false;
+            setActiveRoomCode(res.roomCode);
+            if (res.gameState) {
+              setGameState(res.gameState);
+            }
+            setChatMessages([]);
+            const currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.set('room', res.roomCode);
+            currentUrl.searchParams.delete('join');
+            window.history.replaceState({}, '', currentUrl.toString());
+          }
+        }
+      );
+    } else {
+      launchLocalQuick();
+    }
   };
 
   // Invite friend to room
@@ -1528,6 +1624,13 @@ export default function App() {
   };
 
   const handleToggleReady = () => {
+    if (isLocalModeRef.current && gameState) {
+      const updated = gameState.players.map((p) =>
+        p.id === myPlayer?.id || p.id === myPlayerId ? { ...p, isReady: !p.isReady } : p
+      );
+      setGameState({ ...gameState, players: updated });
+      return;
+    }
     if (!socket) return;
     if (!wallet.address) {
       setErrorMessage('Please connect your Web3 wallet to ready up.');
@@ -1538,16 +1641,51 @@ export default function App() {
   };
 
   const handleAddBot = () => {
+    if (isLocalModeRef.current && gameState) {
+      if (gameState.players.length >= 5) {
+        setErrorMessage('Room is full (max 5 players)');
+        return;
+      }
+      const botNames = ['HemiBot ⚡', 'CyberPepe 🐸', 'SoliditySam ⛓️', 'ChadCard 💎', 'QuantumByte 🤖'];
+      const botAvatars = ['🤖', '🐸', '⚡', '🦁', '🦊'];
+      const idx = gameState.players.length;
+      const newBot: Player = {
+        id: `bot_local_${Date.now()}_${idx}`,
+        name: botNames[idx % botNames.length],
+        avatar: botAvatars[idx % botAvatars.length],
+        isHost: false,
+        isBot: true,
+        isReady: true,
+        isConnected: true,
+        seatIndex: idx,
+        cardCount: 0,
+        hand: [],
+      };
+      setGameState({ ...gameState, players: [...gameState.players, newBot] });
+      return;
+    }
     if (!socket) return;
     socket.emit('room:add_bot');
   };
 
   const handleRemovePlayer = (playerId: string) => {
+    if (isLocalModeRef.current && gameState) {
+      const updated = gameState.players.filter((p) => p.id !== playerId);
+      setGameState({ ...gameState, players: updated });
+      return;
+    }
     if (!socket) return;
     socket.emit('room:remove_player', { playerId });
   };
 
   const handleStartGame = () => {
+    if (isLocalModeRef.current && gameState) {
+      const { state: started, drawPile } = startLocalGame(gameState);
+      localDrawPileRef.current = drawPile;
+      setGameState(started);
+      soundEngine.play('card_deal');
+      return;
+    }
     if (!socket) return;
     if (!wallet.address) {
       setErrorMessage('Please connect your Web3 wallet to start the match.');
@@ -1563,11 +1701,26 @@ export default function App() {
 
   // Game actions
   const handlePlayCard = (card: Card) => {
+    if (isLocalModeRef.current && gameState) {
+      if (isWildCard(card)) {
+        setPendingWildCard(card);
+      } else {
+        const res = executePlayerCardMove(gameState, localDrawPileRef.current, myPlayer?.id || myPlayerId, card.id);
+        if (!res.success) {
+          setErrorMessage(res.error || 'Invalid move');
+          setTimeout(() => setErrorMessage(null), 3000);
+        } else {
+          localDrawPileRef.current = res.drawPile;
+          setGameState(res.state);
+          soundEngine.play('card_play');
+        }
+      }
+      return;
+    }
     if (!socket || !gameState) return;
     if (!isMyTurn && gameState.currentTurnPlayerId !== myPlayer?.id && gameState.currentTurnPlayerId !== myPlayerId) return;
 
     if (isWildCard(card)) {
-      // Prompt Wild / Crazy 8 color nomination cross modal
       setPendingWildCard(card);
     } else {
       socket.emit('game:play_card', { cardId: card.id }, (res: any) => {
@@ -1580,6 +1733,19 @@ export default function App() {
   };
 
   const handleConfirmWildColor = (chosenColor: CardColor) => {
+    if (isLocalModeRef.current && gameState && pendingWildCard) {
+      const res = executePlayerCardMove(gameState, localDrawPileRef.current, myPlayer?.id || myPlayerId, pendingWildCard.id, chosenColor);
+      if (!res.success) {
+        setErrorMessage(res.error || 'Invalid move');
+        setTimeout(() => setErrorMessage(null), 3000);
+      } else {
+        localDrawPileRef.current = res.drawPile;
+        setGameState(res.state);
+        soundEngine.play('card_play');
+      }
+      setPendingWildCard(null);
+      return;
+    }
     if (!socket || !pendingWildCard) return;
     socket.emit('game:play_card', { cardId: pendingWildCard.id, chosenColor }, (res: any) => {
       if (!res.success) {
@@ -1591,6 +1757,18 @@ export default function App() {
   };
 
   const handleDrawCard = () => {
+    if (isLocalModeRef.current && gameState) {
+      const res = executePlayerDrawMove(gameState, localDrawPileRef.current, myPlayer?.id || myPlayerId);
+      if (!res.success) {
+        setErrorMessage(res.error || 'Cannot draw card');
+        setTimeout(() => setErrorMessage(null), 3000);
+      } else {
+        localDrawPileRef.current = res.drawPile;
+        setGameState(res.state);
+        soundEngine.play('card_draw');
+      }
+      return;
+    }
     if (!socket) return;
     socket.emit('game:draw_card', (res: any) => {
       if (!res.success) {
@@ -1601,6 +1779,16 @@ export default function App() {
   };
 
   const handlePassTurn = () => {
+    if (isLocalModeRef.current && gameState) {
+      const res = executePlayerPassMove(gameState, myPlayer?.id || myPlayerId);
+      if (!res.success) {
+        setErrorMessage(res.error || 'Cannot pass turn');
+        setTimeout(() => setErrorMessage(null), 3000);
+      } else {
+        setGameState(res.state);
+      }
+      return;
+    }
     if (!socket) return;
     socket.emit('game:pass_turn', (res: any) => {
       if (!res.success) {
@@ -1611,11 +1799,40 @@ export default function App() {
   };
 
   const handleSendEmote = (emoji: string, text?: string) => {
+    if (isLocalModeRef.current && myPlayer) {
+      const emote: FloatingEmote = {
+        id: `emote_local_${Date.now()}`,
+        playerId: myPlayer.id,
+        emoji,
+        text,
+        timestamp: Date.now(),
+      };
+      setEmotes((prev) => [...prev, emote]);
+      setTimeout(() => {
+        setEmotes((prev) => prev.filter((e) => e.id !== emote.id));
+      }, 2400);
+      return;
+    }
     if (!socket) return;
     socket.emit('game:send_emote', { emoji, text });
   };
 
   const handleSendChatMessage = (text: string) => {
+    if (isLocalModeRef.current && myPlayer) {
+      const msg: ChatMessage = {
+        id: `chat_local_${Date.now()}`,
+        roomId: gameState?.roomId || 'local',
+        roomCode: gameState?.roomCode || 'CLSC',
+        senderId: myPlayer.id,
+        senderName: myPlayer.name,
+        senderAvatar: myPlayer.avatar,
+        text,
+        timestamp: Date.now(),
+      };
+      setChatMessages((prev) => [...prev, msg]);
+      soundEngine.play('card_draw');
+      return;
+    }
     if (!socket) return;
     socket.emit('chat:send', { text }, (res: any) => {
       if (!res?.success) {
@@ -1626,11 +1843,30 @@ export default function App() {
   };
 
   const handleRematch = () => {
+    if (isLocalModeRef.current && gameState) {
+      const { state: restarted, drawPile } = startLocalGame(gameState);
+      localDrawPileRef.current = drawPile;
+      setGameState(restarted);
+      soundEngine.play('card_deal');
+      return;
+    }
     if (!socket) return;
     socket.emit('game:rematch');
   };
 
   const handleLeaveRoom = () => {
+    if (isLocalModeRef.current) {
+      isLocalModeRef.current = false;
+      localDrawPileRef.current = [];
+      setActiveRoomCode(null);
+      setGameState(null);
+      setChatMessages([]);
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.delete('room');
+      currentUrl.searchParams.delete('join');
+      window.history.replaceState({}, '', currentUrl.pathname);
+      return;
+    }
     const isPlayerPlaying = gameState && gameState.status === 'playing' && gameState.players.some((p) => account && p.id === account.id);
     if (isPlayerPlaying) {
       setErrorMessage('You cannot quit while the game is in progress! You must complete the match or wait until it ends.');
