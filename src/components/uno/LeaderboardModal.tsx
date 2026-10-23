@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { X, Trophy, Medal, Award, Flame, RefreshCw, User } from 'lucide-react';
 import { formatAddress } from '@/lib/uno/wallet';
 import { UserAvatar } from './UserAvatar';
+import { UserProfileModal, UserProfileTarget } from '../shared/UserProfileModal';
 
 interface LeaderboardUser {
   id: string;
   name: string;
   avatar: string;
   address?: string;
+  tokenBalance?: number;
   stats: {
     matchesPlayed: number;
     wins: number;
@@ -29,6 +31,7 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
 }) => {
   const [leaders, setLeaders] = useState<LeaderboardUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedProfile, setSelectedProfile] = useState<UserProfileTarget | null>(null);
 
   const fetchLeaderboard = async () => {
     setLoading(true);
@@ -130,11 +133,27 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
               return (
                 <div
                   key={user.id}
-                  className={`flex items-center justify-between p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border transition-all ${
+                  onClick={() => {
+                    setSelectedProfile({
+                      id: user.id,
+                      name: user.name,
+                      avatar: user.avatar,
+                      address: user.address,
+                      tokenBalance: user.tokenBalance,
+                      stats: {
+                        matchesPlayed: user.stats?.matchesPlayed ?? 0,
+                        wins: user.stats?.wins ?? 0,
+                        cardsPlayed: user.stats?.cardsPlayed ?? 0,
+                        totalWinnings: user.stats?.totalWinnings ?? '0',
+                      },
+                    });
+                  }}
+                  className={`flex items-center justify-between p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border transition-all cursor-pointer group ${
                     isCurrentUser
-                      ? 'bg-white/[0.06] border-[#FF4600]/60 shadow-sm'
-                      : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] hover:border-white/[0.1]'
+                      ? 'bg-white/[0.06] border-[#FF4600]/60 shadow-sm hover:border-[#FF4600]'
+                      : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.06] hover:border-white/[0.12]'
                   }`}
+                  title={`Click to view ${user.name}'s profile`}
                 >
                   <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                     {/* Rank Badge */}
@@ -153,19 +172,22 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
                     </div>
 
                     {/* Avatar */}
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-base sm:text-lg shrink-0 overflow-hidden">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-base sm:text-lg shrink-0 overflow-hidden group-hover:scale-105 transition-transform">
                       <UserAvatar avatar={user.avatar} name={user.name} className="w-full h-full text-base sm:text-lg rounded-xl" />
                     </div>
 
                     {/* Name & Wallet */}
                     <div className="min-w-0">
-                      <div className="text-xs sm:text-sm font-bold text-white truncate flex items-center gap-1.5">
+                      <div className="text-xs sm:text-sm font-bold text-white truncate flex items-center gap-1.5 group-hover:text-[#FF4600] transition-colors">
                         <span className="truncate max-w-[90px] sm:max-w-none">{user.name}</span>
                         {isCurrentUser && (
                           <span className="text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded bg-[#FF4600]/20 border border-[#FF4600]/40 text-[#FF4600] font-semibold shrink-0">
                             YOU
                           </span>
                         )}
+                        <span className="text-[10px] text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                          ↗
+                        </span>
                       </div>
                       <div className="text-[10px] sm:text-[11px] font-mono text-slate-400 truncate max-w-[100px] sm:max-w-none">
                         {user.address ? formatAddress(user.address) : `${userMatches} games`}
@@ -195,6 +217,14 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             })
           )}
         </div>
+
+        {/* User Profile Inspection Modal */}
+        <UserProfileModal
+          isOpen={!!selectedProfile}
+          onClose={() => setSelectedProfile(null)}
+          user={selectedProfile}
+          currentUserId={currentUserId}
+        />
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { UserAvatar } from './UserAvatar';
 import { formatAddress } from '@/lib/uno/wallet';
 import { formatTokenAmount } from '@/lib/uno/token';
+import { UserProfileModal, UserProfileTarget } from '../shared/UserProfileModal';
 import {
   Trophy,
   Crown,
@@ -53,6 +54,7 @@ export const Crazy8RichLeaderboard: React.FC<Crazy8RichLeaderboardProps> = ({
   const [leaders, setLeaders] = useState<LeaderboardUser[]>([]);
   const [sortBy, setSortBy] = useState<'chips' | 'wins'>('chips');
   const [loading, setLoading] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserProfileTarget | null>(null);
 
   const fetchLeaders = async (sort: 'chips' | 'wins' = sortBy) => {
     setLoading(true);
@@ -243,15 +245,19 @@ export const Crazy8RichLeaderboard: React.FC<Crazy8RichLeaderboardProps> = ({
         <div className="grid grid-cols-3 gap-2 sm:gap-3 my-3 sm:my-4 items-end relative z-10">
           {/* #2 SILVER PODIUM */}
           {top2 ? (
-            <div className="rounded-xl sm:rounded-2xl p-2.5 sm:p-3 bg-gradient-to-b from-slate-400/10 via-white/[0.02] to-black/40 border border-slate-400/30 flex flex-col items-center text-center relative group hover:border-slate-300/50 transition-all">
+            <div
+              onClick={() => setSelectedUser(top2)}
+              className="rounded-xl sm:rounded-2xl p-2.5 sm:p-3 bg-gradient-to-b from-slate-400/10 via-white/[0.02] to-black/40 border border-slate-400/30 flex flex-col items-center text-center relative group hover:border-slate-300/50 hover:scale-[1.02] transition-all cursor-pointer"
+              title={`View ${top2.name}'s profile`}
+            >
               <div className="absolute -top-2.5 w-6 h-6 rounded-full bg-slate-300 text-slate-950 font-black text-[11px] flex items-center justify-center border-2 border-[#0E1217] shadow-md">
                 2
               </div>
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-slate-800/80 border-2 border-slate-300/40 flex items-center justify-center text-xl sm:text-2xl mt-1 overflow-hidden shadow-inner">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-slate-800/80 border-2 border-slate-300/40 flex items-center justify-center text-xl sm:text-2xl mt-1 overflow-hidden shadow-inner group-hover:scale-105 transition-transform">
                 <UserAvatar avatar={top2.avatar} name={top2.name} className="w-full h-full text-xl sm:text-2xl rounded-xl" />
               </div>
-              <span className="mt-1.5 text-xs font-black text-white truncate max-w-full">
-                {top2.name}
+              <span className="mt-1.5 text-xs font-black text-white truncate max-w-full group-hover:text-[#FF4600] transition-colors">
+                {top2.name} ↗
               </span>
               <div className="mt-0.5 flex items-center gap-1 text-[11px] sm:text-xs font-black text-amber-300 font-mono">
                 <Coins className="w-3 h-3 text-amber-400" />
@@ -266,15 +272,19 @@ export const Crazy8RichLeaderboard: React.FC<Crazy8RichLeaderboardProps> = ({
           )}
 
           {/* #1 GOLD PODIUM (Center, Taller, Glowing) */}
-          <div className="rounded-xl sm:rounded-2xl p-3 sm:p-4 bg-gradient-to-b from-amber-500/20 via-amber-500/5 to-black/60 border-2 border-amber-400/50 flex flex-col items-center text-center relative group shadow-[0_0_24px_rgba(245,158,11,0.2)] hover:border-amber-300 transition-all -translate-y-1">
+          <div
+            onClick={() => setSelectedUser(top1)}
+            className="rounded-xl sm:rounded-2xl p-3 sm:p-4 bg-gradient-to-b from-amber-500/20 via-amber-500/5 to-black/60 border-2 border-amber-400/50 flex flex-col items-center text-center relative group shadow-[0_0_24px_rgba(245,158,11,0.2)] hover:border-amber-300 hover:scale-[1.03] transition-all -translate-y-1 cursor-pointer"
+            title={`View ${top1.name}'s profile`}
+          >
             <div className="absolute -top-3.5 w-7 h-7 rounded-full bg-gradient-to-r from-amber-300 to-amber-500 text-slate-950 font-black text-xs flex items-center justify-center border-2 border-[#0E1217] shadow-lg">
               👑
             </div>
-            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-amber-500/30 to-amber-300/20 border-2 border-amber-400 flex items-center justify-center text-2xl sm:text-3xl mt-1 overflow-hidden shadow-lg">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-amber-500/30 to-amber-300/20 border-2 border-amber-400 flex items-center justify-center text-2xl sm:text-3xl mt-1 overflow-hidden shadow-lg group-hover:scale-105 transition-transform">
               <UserAvatar avatar={top1.avatar} name={top1.name} className="w-full h-full text-2xl sm:text-3xl rounded-2xl" />
             </div>
-            <span className="mt-2 text-xs sm:text-sm font-black text-white truncate max-w-full">
-              {top1.name}
+            <span className="mt-2 text-xs sm:text-sm font-black text-white truncate max-w-full group-hover:text-amber-300 transition-colors">
+              {top1.name} ↗
             </span>
             <div className="mt-0.5 flex items-center gap-1 text-xs sm:text-sm font-black text-amber-300 font-mono">
               <Coins className="w-3.5 h-3.5 text-amber-400 fill-amber-400/30" />
@@ -289,15 +299,19 @@ export const Crazy8RichLeaderboard: React.FC<Crazy8RichLeaderboardProps> = ({
 
           {/* #3 BRONZE PODIUM */}
           {top3 ? (
-            <div className="rounded-xl sm:rounded-2xl p-2.5 sm:p-3 bg-gradient-to-b from-amber-700/15 via-white/[0.02] to-black/40 border border-amber-700/40 flex flex-col items-center text-center relative group hover:border-amber-600/60 transition-all">
+            <div
+              onClick={() => setSelectedUser(top3)}
+              className="rounded-xl sm:rounded-2xl p-2.5 sm:p-3 bg-gradient-to-b from-amber-700/15 via-white/[0.02] to-black/40 border border-amber-700/40 flex flex-col items-center text-center relative group hover:border-amber-600/60 hover:scale-[1.02] transition-all cursor-pointer"
+              title={`View ${top3.name}'s profile`}
+            >
               <div className="absolute -top-2.5 w-6 h-6 rounded-full bg-amber-700 text-amber-100 font-black text-[11px] flex items-center justify-center border-2 border-[#0E1217] shadow-md">
                 3
               </div>
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-slate-800/80 border-2 border-amber-700/40 flex items-center justify-center text-xl sm:text-2xl mt-1 overflow-hidden shadow-inner">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-slate-800/80 border-2 border-amber-700/40 flex items-center justify-center text-xl sm:text-2xl mt-1 overflow-hidden shadow-inner group-hover:scale-105 transition-transform">
                 <UserAvatar avatar={top3.avatar} name={top3.name} className="w-full h-full text-xl sm:text-2xl rounded-xl" />
               </div>
-              <span className="mt-1.5 text-xs font-black text-white truncate max-w-full">
-                {top3.name}
+              <span className="mt-1.5 text-xs font-black text-white truncate max-w-full group-hover:text-[#FF4600] transition-colors">
+                {top3.name} ↗
               </span>
               <div className="mt-0.5 flex items-center gap-1 text-[11px] sm:text-xs font-black text-amber-300 font-mono">
                 <Coins className="w-3 h-3 text-amber-400" />
@@ -336,11 +350,13 @@ export const Crazy8RichLeaderboard: React.FC<Crazy8RichLeaderboardProps> = ({
           return (
             <div
               key={player.id}
-              className={`flex items-center justify-between p-2 sm:p-2.5 rounded-xl border transition-all ${
+              onClick={() => setSelectedUser(player)}
+              className={`flex items-center justify-between p-2 sm:p-2.5 rounded-xl border transition-all cursor-pointer group ${
                 isCurrentUser
-                  ? 'bg-[#FF4600]/10 border-[#FF4600]/50 shadow-md'
-                  : 'bg-white/[0.02] border-white/[0.04] hover:bg-white/[0.04] hover:border-white/[0.08]'
+                  ? 'bg-[#FF4600]/10 border-[#FF4600]/50 shadow-md hover:border-[#FF4600]'
+                  : 'bg-white/[0.02] border-white/[0.04] hover:bg-white/[0.06] hover:border-white/[0.12]'
               }`}
+              title={`View ${player.name}'s profile`}
             >
               {/* Left: Rank, Avatar, Name */}
               <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
@@ -348,12 +364,12 @@ export const Crazy8RichLeaderboard: React.FC<Crazy8RichLeaderboardProps> = ({
                   #{rank}
                 </span>
 
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-sm sm:text-base shrink-0 overflow-hidden">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-sm sm:text-base shrink-0 overflow-hidden group-hover:scale-105 transition-transform">
                   <UserAvatar avatar={player.avatar} name={player.name} className="w-full h-full text-sm sm:text-base rounded-lg" />
                 </div>
 
                 <div className="min-w-0">
-                  <div className="text-xs font-bold text-white truncate flex items-center gap-1.5">
+                  <div className="text-xs font-bold text-white truncate flex items-center gap-1.5 group-hover:text-[#FF4600] transition-colors">
                     <span className="truncate max-w-[100px] sm:max-w-[130px]">
                       {player.name}
                     </span>
@@ -362,6 +378,9 @@ export const Crazy8RichLeaderboard: React.FC<Crazy8RichLeaderboardProps> = ({
                         YOU
                       </span>
                     )}
+                    <span className="text-[10px] text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                      ↗
+                    </span>
                   </div>
                   <div className="text-[10px] font-mono text-slate-400">
                     {playerWins}W / {playerLosses}L • {wr}% WR
@@ -410,6 +429,15 @@ export const Crazy8RichLeaderboard: React.FC<Crazy8RichLeaderboardProps> = ({
           </button>
         )}
       </div>
+
+      {/* User Profile Modal */}
+      <UserProfileModal
+        isOpen={!!selectedUser}
+        onClose={() => setSelectedUser(null)}
+        user={selectedUser}
+        currentUserAddress={currentUserAddress}
+        currentUserId={currentUserId}
+      />
     </div>
   );
 };

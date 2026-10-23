@@ -13,6 +13,7 @@ interface OpponentSeatProps {
   positionStyle?: string;
   sidePosition?: 'left' | 'right' | 'top';
   stackPlacement?: 'left' | 'right' | 'top';
+  onOpenProfile?: (player: Player) => void;
 }
 
 export const OpponentSeat: React.FC<OpponentSeatProps> = ({
@@ -24,6 +25,7 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
   positionStyle = '',
   sidePosition,
   stackPlacement,
+  onOpenProfile,
 }) => {
   // Always use clean horizontal outer layout matching LumiBear (left) and SoliditySam (right)
   const effectiveStackPlacement: 'left' | 'right' =
@@ -52,8 +54,13 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
         />
       )}
 
-      {/* Avatar & Name Column */}
-      <div className="flex flex-col items-center shrink-0">
+      {/* Avatar & Name Column (Clickable to view profile) */}
+      <button
+        type="button"
+        onClick={() => onOpenProfile?.(player)}
+        className="flex flex-col items-center shrink-0 cursor-pointer group/opp focus:outline-none transition-transform active:scale-95"
+        title={`View ${player.name}'s profile`}
+      >
         {/* GAMEPIGEON CIRCULAR AVATAR */}
         <div className="relative">
           {isCurrentTurn && (
@@ -63,7 +70,7 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
           <div
             className={`
               relative w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-sm sm:text-lg
-              transition-all duration-300 shadow-xl
+              transition-all duration-300 shadow-xl group-hover/opp:ring-2 group-hover/opp:ring-[#FF4600]
               ${isCurrentTurn ? 'ring-2 sm:ring-3 ring-white scale-105 shadow-white/50' : 'ring-1.5 ring-white/40'}
               ${!player.isConnected ? 'opacity-50 grayscale' : ''}
             `}
@@ -96,7 +103,7 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
 
         {/* Player Name */}
         <div className="mt-0.5 flex flex-col items-center max-w-[65px] sm:max-w-[85px]">
-          <span className="text-[9px] sm:text-[10px] font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] truncate tracking-tight text-center">
+          <span className="text-[9px] sm:text-[10px] font-bold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] truncate tracking-tight text-center group-hover/opp:text-amber-300 transition-colors">
             {player.name}
           </span>
 
@@ -112,7 +119,7 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
             </span>
           )}
         </div>
-      </div>
+      </button>
     </div>
   );
 };

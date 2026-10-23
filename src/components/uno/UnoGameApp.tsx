@@ -23,6 +23,7 @@ import { VictoryModal } from './VictoryModal';
 import { RulesModal } from './RulesModal';
 import { CardTransferAnimation } from './CardTransferAnimation';
 import { ChatPanel } from './ChatPanel';
+import { UserProfileModal, UserProfileTarget } from '../shared/UserProfileModal';
 import { WalletConnectButton } from './WalletConnectButton';
 import { ProfileModal } from './ProfileModal';
 import { FriendsModal } from './FriendsModal';
@@ -303,6 +304,7 @@ export default function App() {
 
   // Profile & Social State
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [inspectProfile, setInspectProfile] = useState<UserProfileTarget | null>(null);
   const [isFriendsOpen, setIsFriendsOpen] = useState(false);
   const [currentInvite, setCurrentInvite] = useState<GameInviteEvent | null>(null);
   const [friendCount, setFriendCount] = useState(0);
@@ -2344,6 +2346,7 @@ export default function App() {
                         turnTimeTotal={gameState.turnTimeTotal}
                         emotes={emotes}
                         stackPlacement={pos.stackPlacement}
+                        onOpenProfile={(p) => setInspectProfile(p)}
                       />
                     </div>
                   </React.Fragment>
@@ -2512,11 +2515,16 @@ export default function App() {
                     ) : (
                       /* GAMEPIGEON CURRENT PLAYER SEAT (Screenshots 1 & 3: Avatar + Name + Turn halo) */
                       myPlayer && (
-                        <div className="flex items-center gap-1.5 select-none">
+                        <button
+                          type="button"
+                          onClick={() => setInspectProfile(myPlayer)}
+                          className="flex items-center gap-1.5 select-none cursor-pointer group/me transition-transform active:scale-95"
+                          title="Click to view your profile & stats"
+                        >
                           <div className="relative">
                             <div className="absolute -inset-1 rounded-full border-2 border-white animate-ping opacity-50 pointer-events-none" />
                             <div
-                              className="relative w-7 h-7 xs:w-8 xs:h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-sm xs:text-base sm:text-lg transition-all duration-300 shadow-xl ring-2 sm:ring-3 ring-white scale-105 shadow-white/50"
+                              className="relative w-7 h-7 xs:w-8 xs:h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-sm xs:text-base sm:text-lg transition-all duration-300 shadow-xl ring-2 sm:ring-3 ring-white scale-105 shadow-white/50 group-hover/me:ring-[#FF4600]"
                               style={{ backgroundColor: '#a3e635' }}
                             >
                               <UserAvatar avatar={myPlayer.avatar} name={myPlayer.name} className="w-full h-full rounded-full" />
@@ -2525,7 +2533,7 @@ export default function App() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-1 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/20 shadow-md">
+                          <div className="flex items-center gap-1 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/20 shadow-md group-hover/me:border-[#FF4600]/60">
                             <span className="text-[10px] sm:text-xs font-black text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] truncate max-w-[90px] sm:max-w-[130px]">
                               {myPlayer.name}
                             </span>
@@ -2533,21 +2541,26 @@ export default function App() {
                               YOUR TURN
                             </span>
                           </div>
-                        </div>
+                        </button>
                       )
                     )
                   ) : (
                     /* Waiting for Opponent: Show current player avatar in waiting state */
                     myPlayer && (
-                      <div className="flex items-center gap-1.5 select-none">
+                      <button
+                        type="button"
+                        onClick={() => setInspectProfile(myPlayer)}
+                        className="flex items-center gap-1.5 select-none cursor-pointer group/me transition-transform active:scale-95"
+                        title="Click to view your profile & stats"
+                      >
                         <div
-                          className="relative w-7 h-7 xs:w-8 xs:h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-sm xs:text-base ring-1.5 ring-white/30 shadow-md"
+                          className="relative w-7 h-7 xs:w-8 xs:h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-sm xs:text-base ring-1.5 ring-white/30 shadow-md group-hover/me:ring-[#FF4600]"
                           style={{ backgroundColor: '#84cc16' }}
                         >
                           <UserAvatar avatar={myPlayer.avatar} name={myPlayer.name} className="w-full h-full rounded-full" />
                         </div>
-                        <div className="flex flex-col items-start">
-                          <span className="text-[10px] sm:text-xs font-black text-white drop-shadow truncate max-w-[90px] sm:max-w-[130px]">
+                        <div className="flex flex-col items-start text-left">
+                          <span className="text-[10px] sm:text-xs font-black text-white drop-shadow truncate max-w-[90px] sm:max-w-[130px] group-hover/me:underline">
                             {myPlayer.name}
                           </span>
                           <span className="text-[8px] sm:text-[9px] text-amber-300 font-mono flex items-center gap-1 drop-shadow">
@@ -2558,7 +2571,7 @@ export default function App() {
                             <span>({gameState.turnTimeRemaining}s)</span>
                           </span>
                         </div>
-                      </div>
+                      </button>
                     )
                   )}
                 </div>
@@ -2864,6 +2877,7 @@ export default function App() {
           unreadCount={unreadChatCount}
           roomCode={gameState.roomCode}
           roomId={gameState.roomId}
+          onOpenUserProfile={(u) => setInspectProfile(u)}
         />
       )}
 
@@ -2948,6 +2962,7 @@ export default function App() {
           isHost={isHost}
           onRematch={handleRematch}
           onLeaveRoom={handleLeaveRoom}
+          onOpenProfile={(p) => setInspectProfile(p)}
         />
       )}
 
@@ -3020,6 +3035,14 @@ export default function App() {
         onMarkRead={handleMarkNotificationRead}
         onClearAll={handleClearNotifications}
         onOpenAirdrop={() => setIsAirdropOpen(true)}
+      />
+      {/* Universal User Profile Inspector Modal */}
+      <UserProfileModal
+        isOpen={!!inspectProfile}
+        onClose={() => setInspectProfile(null)}
+        user={inspectProfile}
+        currentUserAddress={wallet.address}
+        currentUserId={account?.id}
       />
     </div>
   );

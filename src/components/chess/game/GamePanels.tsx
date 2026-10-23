@@ -3,6 +3,7 @@ import { getCapturedMaterial, pieceGlyph } from "@/lib/chess/material";
 import { useState } from "react";
 import { List, Swords, Settings2, Handshake, Flag, Check } from "lucide-react";
 import { Avatar } from "@/components/Avatar";
+import { ClickableUsername } from "@/components/ClickableUsername";
 
 export function formatClock(ms: number) {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -44,15 +45,17 @@ export function PlayerCard({
       <div className="flex items-center gap-3 p-3">
         {/* Avatar with active indicator */}
         <div className="relative shrink-0">
-          <Avatar
-            src={avatar}
-            alt={name}
-            size="md"
-            fallbackText={name}
-            className={accent === "emerald" 
-              ? "bg-gradient-to-br from-teal to-blue" 
-              : "bg-gradient-to-br from-rose-500 to-danger-accent"}
-          />
+          <ClickableUsername username={name} walletAddress={wallet}>
+            <Avatar
+              src={avatar}
+              alt={name}
+              size="md"
+              fallbackText={name}
+              className={`${accent === "emerald" 
+                ? "bg-gradient-to-br from-teal to-blue" 
+                : "bg-gradient-to-br from-rose-500 to-danger-accent"} hover:scale-105 transition-transform cursor-pointer`}
+            />
+          </ClickableUsername>
           {active && (
             <span className="absolute -right-0.5 -top-0.5 flex h-3 w-3">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange opacity-75"></span>
@@ -64,7 +67,9 @@ export function PlayerCard({
         {/* Player info - TIGHTER */}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <h4 className="truncate text-sm font-semibold text-ink">{name}</h4>
+            <ClickableUsername username={name} walletAddress={wallet} className="truncate text-sm font-semibold text-ink hover:text-[#FF4600] transition-colors">
+              <h4 className="truncate text-sm font-semibold">{name}</h4>
+            </ClickableUsername>
             <span
               className={`h-2 w-2 shrink-0 rounded-full border ${
                 color === "white" ? "border-line-strong bg-ink" : "border-line-strong bg-[var(--bg-base)]"

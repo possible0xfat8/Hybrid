@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Medal, Crown, Swords, Layers, ArrowUpRight, Flame } from 'lucide-react';
+import { Trophy, Medal, Crown, Swords, Layers, ArrowUpRight, Flame, User } from 'lucide-react';
+import { UserProfileModal, UserProfileTarget } from '../shared/UserProfileModal';
 
 interface LeaderboardEntry {
   rank: number;
@@ -20,6 +21,7 @@ export function GlobalLeaderboard() {
   const [activeTab, setActiveTab] = useState<'all' | 'chess' | 'uno'>('all');
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedUser, setSelectedUser] = useState<UserProfileTarget | null>(null);
 
   useEffect(() => {
     setIsLoading(true);
@@ -132,7 +134,21 @@ export function GlobalLeaderboard() {
                 return (
                   <tr
                     key={player.address}
-                    className="hover:bg-white/[0.03] transition-colors group"
+                    onClick={() => {
+                      setSelectedUser({
+                        name: player.name,
+                        avatar: player.avatar,
+                        address: player.address,
+                        stats: {
+                          wins: player.wins,
+                          matchesPlayed: player.wins,
+                          totalWinnings: player.score,
+                        },
+                        tokenBalance: player.score,
+                      });
+                    }}
+                    className="hover:bg-white/[0.06] transition-colors group cursor-pointer"
+                    title={`Click to view ${player.name}'s profile`}
                   >
                     {/* Rank */}
                     <td className="py-4 px-3 font-mono font-bold">
@@ -159,12 +175,15 @@ export function GlobalLeaderboard() {
                     {/* Player */}
                     <td className="py-4 px-3">
                       <div className="flex items-center gap-3">
-                        <span className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-base">
+                        <span className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-base group-hover:scale-105 transition-transform">
                           {player.avatar}
                         </span>
                         <div>
-                          <div className="font-bold text-white group-hover:text-[#FF4600] transition-colors">
-                            {player.name}
+                          <div className="font-bold text-white group-hover:text-[#FF4600] transition-colors flex items-center gap-1.5">
+                            <span>{player.name}</span>
+                            <span className="text-[10px] text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                              ↗
+                            </span>
                           </div>
                           <div className="text-[11px] font-mono text-slate-400">
                             {player.address.slice(0, 6)}...{player.address.slice(-4)}
@@ -215,9 +234,16 @@ export function GlobalLeaderboard() {
 
         {/* Footer info note */}
         <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between text-xs text-slate-400">
-          <span>Synced with Hemi Sepolia smart contract events & Supabase databases</span>
+          <span>Synced with Hemi Sepolia smart contract events & Supabase databases • Click any player to inspect profile</span>
           <span className="text-[#FF4600] font-mono font-bold">Updated real-time</span>
         </div>
+
+        {/* User Profile Modal */}
+        <UserProfileModal
+          isOpen={!!selectedUser}
+          onClose={() => setSelectedUser(null)}
+          user={selectedUser}
+        />
 
       </div>
     </div>

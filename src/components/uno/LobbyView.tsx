@@ -40,6 +40,7 @@ import {
 
 import { Crazy8ProfileDashboard } from './Crazy8ProfileDashboard';
 import { Crazy8RichLeaderboard } from './Crazy8RichLeaderboard';
+import { UserProfileModal, UserProfileTarget } from '../shared/UserProfileModal';
 
 export interface LobbyViewProps {
   gameState: GameState | null;
@@ -128,6 +129,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [copiedRoomCode, setCopiedRoomCode] = useState(false);
   const [sortOption, setSortOption] = useState<'popular' | 'players' | 'fastest'>('popular');
+  const [inspectProfile, setInspectProfile] = useState<UserProfileTarget | null>(null);
 
   // Change Name on Homepage State
   const [isEditingName, setIsEditingName] = useState(false);
@@ -263,8 +265,9 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
     desc: r.description || 'The original. 2-5 players.',
     players: `${r.playerCount}/${r.maxPlayers || 5}`,
     buyIn: r.escrowPot?.buyInAmount && parseFloat(r.escrowPot.buyInAmount) > 0 ? `${r.escrowPot.buyInAmount} $CRAZY8` : 'Free (Non-Staking)',
-    hostName: r.hostName || r.players[0]?.name || 'Host',
-    hostAvatar: r.hostAvatar || r.players[0]?.avatar || '🦊',
+    hostName: r.hostName || r.players?.[0]?.name || 'Host',
+    hostAvatar: r.hostAvatar || r.players?.[0]?.avatar || '🦊',
+    hostAddress: (r.players?.[0] as any)?.address,
   }));
 
   // ==========================================
@@ -546,12 +549,14 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 .map((p, idx) => (
                   <div
                     key={p.id}
-                    className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between"
+                    onClick={() => setInspectProfile(p)}
+                    className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-slate-900/80 border border-slate-800 hover:border-slate-700 flex items-center justify-between cursor-pointer group transition-all"
+                    title={`View ${p.name}'s profile`}
                   >
                     <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
                       <span className="text-[9px] sm:text-[10px] font-black text-amber-400 font-mono">#{idx + 1}</span>
-                      <UserAvatar avatar={p.avatar} name={p.name} className="w-5 h-5 text-sm sm:text-base shrink-0 rounded-full" />
-                      <span className="text-[10px] sm:text-xs font-bold text-slate-200 truncate max-w-[50px] sm:max-w-[75px]">
+                      <UserAvatar avatar={p.avatar} name={p.name} className="w-5 h-5 text-sm sm:text-base shrink-0 rounded-full group-hover:scale-105 transition-transform" />
+                      <span className="text-[10px] sm:text-xs font-bold text-slate-200 truncate max-w-[50px] sm:max-w-[75px] group-hover:text-[#FF4600] transition-colors">
                         {p.name}
                       </span>
                     </div>
@@ -585,16 +590,23 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                   className={`p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border flex items-center justify-between transition-all ${
                     isMe
                       ? 'bg-[#FF4600]/10 border-[#FF4600]/40 shadow-sm'
-                      : 'bg-slate-900/60 border-slate-800'
+                      : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
                   }`}
                 >
-                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-lg sm:text-xl shrink-0 overflow-hidden">
+                  <div
+                    onClick={() => setInspectProfile(p)}
+                    className="flex items-center gap-2 sm:gap-3 min-w-0 cursor-pointer group"
+                    title={`Click to view ${p.name}'s profile`}
+                  >
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-lg sm:text-xl shrink-0 overflow-hidden group-hover:scale-105 group-hover:border-slate-500 transition-all">
                       <UserAvatar avatar={p.avatar} name={p.name} className="w-full h-full text-lg sm:text-xl rounded-lg sm:rounded-xl" />
                     </div>
                     <div className="min-w-0">
                       <div className="text-xs sm:text-sm font-black text-white flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                        <span className="truncate max-w-[100px] sm:max-w-none">{p.name}</span>
+                        <span className="truncate max-w-[100px] sm:max-w-none group-hover:text-[#FF4600] transition-colors flex items-center gap-1">
+                          <span>{p.name}</span>
+                          <span className="text-[10px] text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">↗</span>
+                        </span>
                         {p.isHost && (
                           <span className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30">
                             HOST
@@ -775,6 +787,14 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             ) : null}
           </div>
         </div>
+
+        <UserProfileModal
+          isOpen={!!inspectProfile}
+          onClose={() => setInspectProfile(null)}
+          user={inspectProfile}
+          currentUserAddress={wallet.address}
+          currentUserId={account?.id}
+        />
       </div>
     );
   }
@@ -1124,10 +1144,22 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                           <span className="text-slate-500">💼</span>
                           <span>{table.buyIn}</span>
                         </div>
-                        <div className="flex items-center gap-1.5 text-slate-300">
-                          <UserAvatar avatar={table.hostAvatar} name={table.hostName} className="w-4 h-4 text-xs rounded-full shrink-0" />
-                          <span className="truncate max-w-[60px] sm:max-w-[80px]">{table.hostName}</span>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setInspectProfile({
+                              name: table.hostName,
+                              avatar: table.hostAvatar,
+                              address: table.hostAddress,
+                            });
+                          }}
+                          className="flex items-center gap-1.5 text-slate-300 hover:text-white transition-colors cursor-pointer group/host"
+                          title={`View ${table.hostName}'s profile`}
+                        >
+                          <UserAvatar avatar={table.hostAvatar} name={table.hostName} className="w-4 h-4 text-xs rounded-full shrink-0 group-hover/host:ring-1 group-hover/host:ring-[#FF4600]" />
+                          <span className="truncate max-w-[60px] sm:max-w-[80px] group-hover/host:underline">{table.hostName}</span>
+                        </button>
                       </div>
 
                       <button
@@ -1207,11 +1239,20 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               {onlineFriends.length > 0 ? (
                 <div className="flex items-center justify-start gap-2 overflow-x-auto no-scrollbar py-1">
                   {onlineFriends.slice(0, 5).map((f) => (
-                    <div
+                    <button
+                      type="button"
                       key={f.id}
-                      onClick={onOpenFriends}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setInspectProfile({
+                          id: f.id,
+                          name: f.name,
+                          avatar: f.avatar,
+                          address: f.address,
+                        });
+                      }}
                       className="flex flex-col items-center gap-0.5 sm:gap-1 cursor-pointer group shrink-0"
-                      title={`${f.name} (${f.status})`}
+                      title={`View ${f.name}'s profile (${f.status})`}
                     >
                       <div className="relative">
                         <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white/[0.04] border border-white/[0.06] group-hover:border-white/[0.15] flex items-center justify-center text-sm sm:text-lg transition-colors overflow-hidden">
@@ -1219,10 +1260,10 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                         </div>
                         <span className={`absolute bottom-0 right-0 w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full border-2 border-[#08090C] ${f.status === 'in_game' ? 'bg-amber-400' : 'bg-emerald-400'}`} />
                       </div>
-                      <span className="text-[9px] sm:text-[10px] text-slate-300 font-medium truncate max-w-[48px]">
+                      <span className="text-[9px] sm:text-[10px] text-slate-300 font-medium truncate max-w-[48px] group-hover:text-white group-hover:underline">
                         {f.name}
                       </span>
-                    </div>
+                    </button>
                   ))}
                 </div>
               ) : (
@@ -1281,6 +1322,14 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
           </button>
         </div>
       </div>
+
+      <UserProfileModal
+        isOpen={!!inspectProfile}
+        onClose={() => setInspectProfile(null)}
+        user={inspectProfile}
+        currentUserAddress={wallet.address}
+        currentUserId={account?.id}
+      />
     </div>
   );
 };

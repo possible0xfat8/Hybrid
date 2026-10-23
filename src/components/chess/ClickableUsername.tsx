@@ -16,15 +16,16 @@ export function ClickableUsername({ username, walletAddress, className = '', chi
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (walletAddress) {
-      router.push(`/user/${walletAddress}`);
+    const target = walletAddress || username;
+    if (target) {
+      router.push(`/user/${encodeURIComponent(target)}`);
     }
   };
 
   return (
     <button
       onClick={handleClick}
-      className={`text-left hover:text-orange transition-colors cursor-pointer ${className}`}
+      className={`text-left hover:text-[#FF4600] transition-colors cursor-pointer ${className}`}
       title={`View ${username}'s profile`}
     >
       {children || username}

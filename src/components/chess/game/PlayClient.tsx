@@ -104,6 +104,7 @@ export function PlayClient() {
   const [opponentName, setOpponentName] = useState<string>('Opponent');
   const [opponentElo, setOpponentElo] = useState<number>(200);
   const [opponentAvatar, setOpponentAvatar] = useState<string | null>(null);
+  const [opponentWallet, setOpponentWallet] = useState<string | null>(null);
   const [myGameElo, setMyGameElo] = useState<number>(200);
   const [myAvatar, setMyAvatar] = useState<string | null>(null);
   
@@ -326,6 +327,7 @@ export function PlayClient() {
       setOpponentName(opponent.name || 'Opponent');
       setOpponentElo(opponent.elo || oppElo || DEFAULT_ELO);
       setOpponentAvatar(opponent.avatar || null);
+      setOpponentWallet(opponent.wallet || opponent.address || null);
       setMyGameElo(myElo || DEFAULT_ELO);
       setMyAvatar(myAv || null);
       setMyTurn(color === 'white');
@@ -391,6 +393,7 @@ export function PlayClient() {
       setOpponentName(opponent.name || 'Opponent');
       setOpponentElo(opponent.elo || oppElo || DEFAULT_ELO);
       setOpponentAvatar(opponent.avatar || null);
+      setOpponentWallet(opponent.wallet || opponent.address || null);
       setMyGameElo(myElo || DEFAULT_ELO);
       setMyAvatar(myAv || null);
       setMyTurn(color === 'white');
@@ -1270,6 +1273,7 @@ export function PlayClient() {
                   color={opponentColor}
                   elo={opponentElo}
                   avatar={opponentAvatar}
+                  wallet={opponentWallet || undefined}
                   timeMs={opponentTime}
                   active={gameState === 'playing' && !myTurn}
                   accent="rose"

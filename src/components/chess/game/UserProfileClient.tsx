@@ -45,7 +45,7 @@ export function UserProfileClient({ walletAddress }: UserProfileClientProps) {
     setIsLoadingStats(true);
     try {
       const apiUrl = getBackendUrl();
-      const response = await fetch(`${apiUrl}/api/player/${walletAddress.toLowerCase()}/stats`);
+      const response = await fetch(`${apiUrl}/api/player/${encodeURIComponent(walletAddress.toLowerCase())}/stats`);
       
       if (response.ok) {
         const data = await response.json();
@@ -54,6 +54,24 @@ export function UserProfileClient({ walletAddress }: UserProfileClientProps) {
         // Set avatar URL if exists
         if (data.avatar_url) {
           setAvatarUrl(data.avatar_url);
+        }
+      } else {
+        // Fallback: try universal profile endpoint
+        const profileRes = await fetch(`/api/profile/by-address/${encodeURIComponent(walletAddress.toLowerCase())}`);
+        if (profileRes.ok) {
+          const profileData = await profileRes.json();
+          if (profileData.user) {
+            setStats({
+              username: profileData.user.name,
+              avatar_url: profileData.user.avatar,
+              elo_rating: profileData.user.stats?.elo || DEFAULT_ELO,
+              total_games: profileData.user.stats?.matchesPlayed || 0,
+              wins: profileData.user.stats?.wins || 0,
+              losses: profileData.user.stats?.losses || 0,
+              win_rate: profileData.user.stats?.winRate || '0',
+            });
+            if (profileData.user.avatar) setAvatarUrl(profileData.user.avatar);
+          }
         }
       }
     } catch (error) {
@@ -121,7 +139,8 @@ export function UserProfileClient({ walletAddress }: UserProfileClientProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const displayName = stats?.username || `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`;
+  const isEthAddress = walletAddress.startsWith('0x') && walletAddress.length >= 10;
+  const displayName = stats?.username || (isEthAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : walletAddress);
   const winRate = stats && stats.total_games > 0 ? parseFloat(stats.win_rate).toFixed(1) : '0';
   const currentElo = stats?.elo_rating ?? DEFAULT_ELO;
 

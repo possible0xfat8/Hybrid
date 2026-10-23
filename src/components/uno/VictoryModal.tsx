@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import confetti from 'canvas-confetti';
-import { GameState } from '../types';
+import { GameState, Player } from '../types';
 import { Trophy, CheckCircle2, Copy, ArrowRight, ShieldCheck, LogOut, ExternalLink, Loader2, Eye, EyeOff } from 'lucide-react';
 import { UserAvatar } from './UserAvatar';
 
@@ -10,6 +10,7 @@ interface VictoryModalProps {
   isHost: boolean;
   onRematch: () => void;
   onLeaveRoom?: () => void;
+  onOpenProfile?: (player: Player) => void;
 }
 
 export const VictoryModal: React.FC<VictoryModalProps> = ({
@@ -18,6 +19,7 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
   isHost,
   onRematch,
   onLeaveRoom,
+  onOpenProfile,
 }) => {
   const [copied, setCopied] = useState(false);
   const [claimed, setClaimed] = useState(false);
@@ -149,16 +151,18 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
                 .map((p, idx) => (
                   <div
                     key={p.id}
-                    className={`flex items-center justify-between px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border text-[11px] sm:text-xs ${
+                    onClick={() => onOpenProfile?.(p)}
+                    className={`flex items-center justify-between px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl border text-[11px] sm:text-xs cursor-pointer transition-all hover:border-[#FF4600]/40 hover:bg-white/[0.08] group ${
                       p.id === winner?.id
                         ? 'bg-white/[0.06] border-white/[0.12] text-white'
                         : 'bg-white/[0.02] border-white/[0.04] text-slate-300'
                     }`}
+                    title={`View ${p.name}'s profile`}
                   >
                     <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                       <span className="font-mono text-slate-400 font-medium w-4 text-[10px] sm:text-xs">#{idx + 1}</span>
-                      <UserAvatar avatar={p.avatar} name={p.name} className="w-5 h-5 text-sm sm:text-base shrink-0 rounded-full" />
-                      <span className="font-medium truncate max-w-[85px] sm:max-w-[120px]">{p.name}</span>
+                      <UserAvatar avatar={p.avatar} name={p.name} className="w-5 h-5 text-sm sm:text-base shrink-0 rounded-full group-hover:scale-110 transition-transform" />
+                      <span className="font-medium truncate max-w-[85px] sm:max-w-[120px] group-hover:text-white group-hover:underline">{p.name}</span>
                       {p.id === myPlayerId && (
                         <span className="text-[8px] sm:text-[9px] px-1 py-0.2 rounded bg-[#FF4600]/20 border border-[#FF4600]/40 text-[#FF4600] font-bold shrink-0">YOU</span>
                       )}

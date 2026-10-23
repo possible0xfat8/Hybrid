@@ -12,6 +12,7 @@ interface ChatPanelProps {
   unreadCount: number;
   roomCode?: string;
   roomId?: string;
+  onOpenUserProfile?: (user: { id?: string; name: string; avatar?: string; address?: string }) => void;
 }
 
 const QUICK_CHATS = [
@@ -35,6 +36,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   unreadCount,
   roomCode,
   roomId,
+  onOpenUserProfile,
 }) => {
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -185,9 +187,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                     key={msg.id}
                     className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group`}
                   >
-                    <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] text-slate-400 font-medium">
+                    <button
+                      type="button"
+                      onClick={() => onOpenUserProfile?.({
+                        id: msg.senderId,
+                        name: msg.senderName,
+                        avatar: msg.senderAvatar,
+                      })}
+                      className="flex items-center gap-1.5 mb-1 px-1 text-[10px] text-slate-400 font-medium hover:text-white transition-colors cursor-pointer"
+                      title={`View ${msg.senderName}'s profile`}
+                    >
                       <span className="text-xs">{msg.senderAvatar}</span>
-                      <span className={`font-bold ${isMe ? 'text-[#FF4600]' : 'text-slate-300'}`}>
+                      <span className={`font-bold hover:underline ${isMe ? 'text-[#FF4600]' : 'text-slate-300'}`}>
                         {msg.senderName}
                       </span>
                       {msg.isSpectator && (
@@ -198,7 +209,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                       <span className="text-slate-500">
                         {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
-                    </div>
+                    </button>
 
                     <div
                       className={`

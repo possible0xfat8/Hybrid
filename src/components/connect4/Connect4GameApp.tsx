@@ -14,6 +14,7 @@ import {
   getBotBestMove,
 } from '@/lib/connect4/localConnect4Engine';
 import { WalletConnect } from '@/components/shared/WalletConnect';
+import { UserProfileModal, UserProfileTarget } from '@/components/shared/UserProfileModal';
 import {
   Trophy,
   Zap,
@@ -105,6 +106,7 @@ export default function Connect4GameApp() {
   const [activeTab, setActiveTab] = useState<'quick' | 'bot' | 'private'>('quick');
   const [secondsRemaining, setSecondsRemaining] = useState(20);
   const [isGameOverMinimized, setIsGameOverMinimized] = useState(false);
+  const [inspectProfile, setInspectProfile] = useState<UserProfileTarget | null>(null);
   const isLocalMatchRef = useRef<boolean>(false);
 
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
@@ -896,15 +898,22 @@ export default function Connect4GameApp() {
             <div className="p-2.5 xs:p-3 sm:p-5 rounded-2xl bg-gradient-to-r from-obsidian-900 via-obsidian-950 to-obsidian-900 border border-white/10 shadow-2xl flex items-center justify-between gap-1.5 sm:gap-4">
               
               {/* Player 1 Card (Orange Disc) */}
-              <div
-                className={`flex items-center gap-1.5 sm:gap-3 p-1.5 sm:p-2.5 rounded-xl transition-all min-w-0 ${
+              <button
+                type="button"
+                onClick={() => setInspectProfile({
+                  name: p1?.displayName || 'Player 1',
+                  avatar: p1?.avatar || '🦊',
+                  address: p1?.address,
+                })}
+                className={`flex items-center gap-1.5 sm:gap-3 p-1.5 sm:p-2.5 rounded-xl transition-all min-w-0 cursor-pointer text-left hover:scale-102 hover:border-[#FF4600] group/p1 ${
                   roomState.currentTurn === 1
                     ? 'bg-[#FF4600]/15 border border-[#FF4600]/50 shadow-[0_0_15px_rgba(255,70,0,0.2)]'
-                    : 'opacity-70'
+                    : 'opacity-70 hover:opacity-100 border border-transparent'
                 }`}
+                title={`View ${p1?.displayName || 'Player 1'}'s profile`}
               >
                 <div className="relative shrink-0">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-[#FF6A00] to-[#CC3300] border-2 border-[#FF8C00] shadow-md flex items-center justify-center text-sm sm:text-lg">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-[#FF6A00] to-[#CC3300] border-2 border-[#FF8C00] shadow-md flex items-center justify-center text-sm sm:text-lg group-hover/p1:scale-110 transition-transform">
                     {p1?.avatar || '🦊'}
                   </div>
                   {roomState.currentTurn === 1 && (
@@ -914,7 +923,7 @@ export default function Connect4GameApp() {
 
                 <div className="min-w-0">
                   <div className="flex items-center gap-1 sm:gap-1.5">
-                    <span className="text-xs font-bold text-white truncate max-w-[70px] xs:max-w-[100px] sm:max-w-none">
+                    <span className="text-xs font-bold text-white truncate max-w-[70px] xs:max-w-[100px] sm:max-w-none group-hover/p1:underline">
                       {p1?.displayName || 'Player 1'}
                     </span>
                     {myPlayerNumber === 1 && (
@@ -927,7 +936,7 @@ export default function Connect4GameApp() {
                     <span className="hidden xs:inline text-[#FF4600] font-bold">Orange • </span>ELO: {p1?.elo || 1200}
                   </div>
                 </div>
-              </div>
+              </button>
 
               {/* Center Match Info: 20s Countdown Timer */}
               <div className="flex flex-col items-center shrink-0 px-1">
@@ -956,12 +965,20 @@ export default function Connect4GameApp() {
               </div>
 
               {/* Player 2 Card (Gold Disc) */}
-              <div
-                className={`flex items-center gap-1.5 sm:gap-3 p-1.5 sm:p-2.5 rounded-xl transition-all min-w-0 justify-end ${
+              <button
+                type="button"
+                onClick={() => setInspectProfile({
+                  name: p2?.displayName || (p2?.isBot ? 'HemiBot 🤖' : 'Player 2'),
+                  avatar: p2?.avatar || (p2?.isBot ? '🤖' : '⚡'),
+                  address: p2?.address,
+                  isBot: p2?.isBot,
+                })}
+                className={`flex items-center gap-1.5 sm:gap-3 p-1.5 sm:p-2.5 rounded-xl transition-all min-w-0 justify-end cursor-pointer text-right hover:scale-102 hover:border-[#F59E0B] group/p2 ${
                   roomState.currentTurn === 2
                     ? 'bg-[#F59E0B]/15 border border-[#F59E0B]/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
-                    : 'opacity-70'
+                    : 'opacity-70 hover:opacity-100 border border-transparent'
                 }`}
+                title={`View ${p2?.displayName || (p2?.isBot ? 'HemiBot' : 'Player 2')}'s profile`}
               >
                 <div className="text-right min-w-0">
                   <div className="flex items-center justify-end gap-1 sm:gap-1.5">
@@ -970,7 +987,7 @@ export default function Connect4GameApp() {
                         YOU
                       </span>
                     )}
-                    <span className="text-xs font-bold text-white truncate max-w-[70px] xs:max-w-[100px] sm:max-w-none">
+                    <span className="text-xs font-bold text-white truncate max-w-[70px] xs:max-w-[100px] sm:max-w-none group-hover/p2:underline">
                       {p2?.displayName || (p2?.isBot ? 'HemiBot 🤖' : 'Player 2')}
                     </span>
                   </div>
@@ -980,14 +997,14 @@ export default function Connect4GameApp() {
                 </div>
 
                 <div className="relative shrink-0">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-[#FBBF24] to-[#D97706] border-2 border-[#FDE68A] shadow-md flex items-center justify-center text-sm sm:text-lg">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-[#FBBF24] to-[#D97706] border-2 border-[#FDE68A] shadow-md flex items-center justify-center text-sm sm:text-lg group-hover/p2:scale-110 transition-transform">
                     {p2?.avatar || (p2?.isBot ? '🤖' : '⚡')}
                   </div>
                   {roomState.currentTurn === 2 && (
                     <span className="absolute -bottom-1 -left-1 w-3.5 h-3.5 rounded-full bg-[#F59E0B] border-2 border-black animate-ping" />
                   )}
                 </div>
-              </div>
+              </button>
 
             </div>
 
@@ -1072,13 +1089,24 @@ export default function Connect4GameApp() {
                   ) : (
                     chatMessages.map((msg, i) => (
                       <div key={i} className="flex items-baseline gap-2">
-                        <span
-                          className={`font-bold font-mono text-[11px] ${
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const senderPlayer = roomState?.players.find(p => p.playerNumber === msg.playerNumber);
+                            setInspectProfile({
+                              name: msg.sender,
+                              avatar: senderPlayer?.avatar,
+                              address: senderPlayer?.address,
+                              isBot: senderPlayer?.isBot,
+                            });
+                          }}
+                          className={`font-bold font-mono text-[11px] hover:underline cursor-pointer transition-colors ${
                             msg.playerNumber === 1 ? 'text-[#FF4600]' : 'text-amber-400'
                           }`}
+                          title={`View ${msg.sender}'s profile`}
                         >
                           {msg.sender}:
-                        </span>
+                        </button>
                         <span className="text-slate-200">{msg.message}</span>
                       </div>
                     ))
@@ -1354,6 +1382,14 @@ export default function Connect4GameApp() {
       <footer className="w-full border-t border-white/5 py-4 px-4 sm:px-6 lg:px-8 text-center text-[11px] font-mono text-slate-500">
         Hemi Connect 4 • Chain: 743111 • Contract: 0xfe6d...afa3 • Unified Hemi Arcade Hub
       </footer>
+
+      {/* Universal User Profile Inspector Modal */}
+      <UserProfileModal
+        isOpen={!!inspectProfile}
+        onClose={() => setInspectProfile(null)}
+        user={inspectProfile}
+        currentUserAddress={userAddress}
+      />
     </div>
   );
 }
