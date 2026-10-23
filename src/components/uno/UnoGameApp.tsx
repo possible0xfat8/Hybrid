@@ -1452,8 +1452,8 @@ export default function App() {
     }
   };
 
-  // 1-Click Quick Match - joins open waiting room or creates one automatically
-  const handleQuickJoin = () => {
+  // 1-Click Quick Match - joins open waiting room or creates one automatically with pot feature
+  const handleQuickJoin = (buyIn: string = '100') => {
     let s = socket;
     if (!s) {
       s = getUnoSocket();
@@ -1487,18 +1487,20 @@ export default function App() {
     if (!activeAddress || !activeAccount) return;
     setErrorMessage(null);
 
+    const targetBuyIn = buyIn || '100';
+
     const launchLocalQuick = () => {
       isLocalModeRef.current = true;
-      const localState = createLocalLobby('CLSC', {
+      const localState = createLocalLobby('QM', {
         name: activeAccount.name,
         avatar: activeAccount.avatar,
         address: activeAddress,
-      });
-      setActiveRoomCode('CLSC');
+      }, { isQuickMatch: true, buyInAmount: targetBuyIn });
+      setActiveRoomCode('QM');
       setGameState(localState);
       setChatMessages([]);
       const currentUrl = new URL(window.location.href);
-      currentUrl.searchParams.set('room', 'CLSC');
+      currentUrl.searchParams.set('room', 'QM');
       currentUrl.searchParams.delete('join');
       window.history.replaceState({}, '', currentUrl.toString());
     };
@@ -1510,7 +1512,7 @@ export default function App() {
           answered = true;
           launchLocalQuick();
         }
-      }, 1200);
+      }, 4000);
 
       s.emit(
         'room:quick_join',
@@ -1520,6 +1522,7 @@ export default function App() {
           accountId: activeAccount.id,
           userId: activeAccount.id,
           address: activeAddress,
+          buyIn: targetBuyIn,
         },
         (res: any) => {
           if (answered) return;
@@ -1643,6 +1646,11 @@ export default function App() {
   };
 
   const handleAddBot = () => {
+    if (gameState?.isQuickMatch) {
+      setErrorMessage('Bots are strictly forbidden in Quick Match contest rooms.');
+      setTimeout(() => setErrorMessage(null), 3000);
+      return;
+    }
     if (isLocalModeRef.current && gameState) {
       if (gameState.players.length >= 5) {
         setErrorMessage('Room is full (max 5 players)');

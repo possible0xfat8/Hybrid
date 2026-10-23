@@ -52,7 +52,7 @@ export interface LobbyViewProps {
   onConnectWallet: () => Promise<void>;
   onCreateRoom: (playerName: string, avatar: string, buyIn: string, address?: string) => void;
   onJoinRoom: (roomCode: string, playerName: string, avatar: string, address?: string) => void;
-  onQuickJoin?: () => void;
+  onQuickJoin?: (buyIn?: string) => void;
   onOpenProfile: () => void;
   onOpenFriends: () => void;
   friendCount?: number;
@@ -193,13 +193,13 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
     return true;
   };
 
-  const handleQuickJoinClick = () => {
+  const handleQuickJoinClick = (customStake: string = '100') => {
     if (isEditingName || isEditingNameMobile) {
       if (nameInput.trim()) {
         handleSaveName(nameInput);
       }
     }
-    if (onQuickJoin) onQuickJoin();
+    if (onQuickJoin) onQuickJoin(customStake);
   };
 
   const handleAvatarSelect = (newAvatar: string) => {
@@ -288,8 +288,9 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
     const isQuickMatch = !!gameState.isQuickMatch;
     const readyPlayersCount = gameState.players.filter((p) => p.isReady || p.isBot).length;
     const allPlayersReady = gameState.players.every((p) => p.isReady || p.isBot);
-    // STRICT REQUIREMENT: More than 2 players on the lobby (minimum 3 players) AND all players have clicked "I am Ready!"
-    const canStart = playerCount > 2 && playerCount <= 5 && allPlayersReady;
+    // Quick Match allows 2-5 real players (1v1 or multiplayer contest), custom tables require 3-5
+    const minRequired = isQuickMatch ? 2 : 3;
+    const canStart = playerCount >= minRequired && playerCount <= 5 && allPlayersReady;
 
     const handleCopyCode = () => {
       navigator.clipboard.writeText(gameState.roomCode);
@@ -427,7 +428,9 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               </div>
               <p className="text-[10px] sm:text-xs text-slate-400">
                 {isHost
-                  ? 'More than 2 players required (3+ min). All players must click "I am Ready!" before match starts.'
+                  ? isQuickMatch
+                    ? 'At least 2 real players required (2-5 players). All players must click "I am Ready!" before match starts.'
+                    : 'More than 2 players required (3+ min). All players must click "I am Ready!" before match starts.'
                   : 'Click "I am Ready!" to prepare for match start.'}
               </p>
             </div>
@@ -574,7 +577,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
           <div className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
             <span>Seat Roster ({playerCount}/5)</span>
             <span className="text-emerald-400 lowercase font-mono font-normal">
-              {readyPlayersCount}/{playerCount} ready {playerCount <= 2 ? '(more than 2 players needed to start)' : ''}
+              {readyPlayersCount}/{playerCount} ready {playerCount < (isQuickMatch ? 2 : 3) ? `(${isQuickMatch ? 'at least 2' : 'more than 2'} players needed to start)` : ''}
             </span>
           </div>
 
@@ -840,7 +843,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
 
             <button
               type="button"
-              onClick={onQuickJoin}
+              onClick={() => onQuickJoin?.('100')}
               className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/[0.04] font-medium text-sm transition-all text-left cursor-pointer"
             >
               <Gamepad2 className="w-5 h-5" />
@@ -971,14 +974,17 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                   Ready to <span className="text-[#FF4600]">Sweep the Pot?</span>
                 </h1>
 
-                <div className="flex items-center gap-2.5 mt-3">
+                <div className="flex items-center gap-2.5 mt-3 flex-wrap">
                   <button
                     type="button"
-                    onClick={handleQuickJoinClick}
+                    onClick={() => handleQuickJoinClick('100')}
                     className="px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-[#FF5500] to-[#FF3700] hover:brightness-110 active:scale-95 text-white font-black text-xs sm:text-sm tracking-wider uppercase transition-all flex items-center gap-2 shadow-lg shadow-[#FF4600]/30 cursor-pointer"
                   >
                     <Play className="w-4 h-4 fill-white" />
                     <span>QUICK PLAY</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-black/30 border border-white/20 text-amber-300 font-bold ml-0.5">
+                      100 🪙 POT
+                    </span>
                   </button>
 
                   <button
@@ -1098,10 +1104,11 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     <button
-                      onClick={handleQuickJoinClick}
-                      className="px-4 py-2 rounded-lg bg-[#FF4600] hover:bg-[#FF5500] text-white font-bold text-xs transition-all active:scale-95 cursor-pointer"
+                      onClick={() => handleQuickJoinClick('100')}
+                      className="px-4 py-2 rounded-lg bg-[#FF4600] hover:bg-[#FF5500] text-white font-bold text-xs transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
                     >
-                      Quick Play
+                      <span>Quick Play</span>
+                      <span className="text-[10px] font-mono px-1 rounded bg-black/30 text-amber-300">100 🪙</span>
                     </button>
                     <button
                       onClick={handleCreateTableClick}
@@ -1298,7 +1305,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
           </button>
           <button
             type="button"
-            onClick={onQuickJoin}
+            onClick={() => onQuickJoin?.('100')}
             className="flex flex-col items-center gap-0.5 px-3 py-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
           >
             <Gamepad2 className="w-5 h-5" />

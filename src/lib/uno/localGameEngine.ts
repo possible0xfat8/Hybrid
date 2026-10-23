@@ -82,15 +82,22 @@ const PRACTICE_ROOM_PRESETS: Record<string, { mode: string; bots: { name: string
   },
 };
 
-export function createLocalLobby(roomCode: string, humanPlayer: LocalPlayerSeed): GameState {
+export function createLocalLobby(
+  roomCode: string,
+  humanPlayer: LocalPlayerSeed,
+  options?: { isQuickMatch?: boolean; buyInAmount?: string }
+): GameState {
   const cleanCode = roomCode.toUpperCase().trim();
-  const preset = PRACTICE_ROOM_PRESETS[cleanCode] || {
-    mode: 'Classic',
-    bots: [
-      { name: 'LumiBear', avatar: '🐻' },
-      { name: 'CyberPepe 🐸', avatar: '🐸' },
-    ],
-  };
+  const isQuick = !!options?.isQuickMatch || cleanCode === 'QM' || cleanCode.startsWith('QM');
+  const preset = isQuick
+    ? { mode: 'Quick Match', bots: [] }
+    : PRACTICE_ROOM_PRESETS[cleanCode] || {
+        mode: 'Classic',
+        bots: [
+          { name: 'LumiBear', avatar: '🐻' },
+          { name: 'CyberPepe 🐸', avatar: '🐸' },
+        ],
+      };
 
   const humanId = humanPlayer.address ? `wallet_${humanPlayer.address.toLowerCase()}` : `player_human_${Date.now()}`;
   const players: Player[] = [
@@ -109,20 +116,25 @@ export function createLocalLobby(roomCode: string, humanPlayer: LocalPlayerSeed)
     },
   ];
 
-  preset.bots.forEach((b, idx) => {
-    players.push({
-      id: `bot_local_${idx}_${cleanCode.toLowerCase()}`,
-      name: b.name,
-      avatar: b.avatar,
-      isHost: false,
-      isBot: true,
-      isReady: true,
-      isConnected: true,
-      seatIndex: idx + 1,
-      cardCount: 0,
-      hand: [],
+  if (!isQuick) {
+    preset.bots.forEach((b, idx) => {
+      players.push({
+        id: `bot_local_${idx}_${cleanCode.toLowerCase()}`,
+        name: b.name,
+        avatar: b.avatar,
+        isHost: false,
+        isBot: true,
+        isReady: true,
+        isConnected: true,
+        seatIndex: idx + 1,
+        cardCount: 0,
+        hand: [],
+      });
     });
-  });
+  }
+
+  const buyInVal = options?.buyInAmount || (isQuick ? '100' : '0');
+  const isStaking = parseFloat(buyInVal) > 0;
 
   return {
     roomId: `local_room_${cleanCode.toLowerCase()}`,
@@ -130,10 +142,11 @@ export function createLocalLobby(roomCode: string, humanPlayer: LocalPlayerSeed)
     hostId: humanId,
     status: 'lobby',
     players,
-    isStaking: false,
-    buyInAmount: '0',
-    minPlayersRequired: 3,
+    isStaking,
+    buyInAmount: buyInVal,
+    minPlayersRequired: isQuick ? 2 : 3,
     customMode: preset.mode,
+    isQuickMatch: isQuick,
     currentTurnPlayerId: null,
     currentTurnIndex: 0,
     turnDirection: 1,
@@ -145,13 +158,15 @@ export function createLocalLobby(roomCode: string, humanPlayer: LocalPlayerSeed)
     drawPendingForPlayer: false,
     drawnCard: null,
     pendingDrawCount: 0,
-    lastActionMessage: `Welcome to Table #${cleanCode}! Click "Start Game" to begin.`,
+    lastActionMessage: isQuick
+      ? `Quick Match Table #${cleanCode} ready! Waiting for real players to join.`
+      : `Welcome to Table #${cleanCode}! Click "Start Game" to begin.`,
     bannerAlert: null,
     winner: null,
     escrowPot: {
-      amount: '0.000',
+      amount: isStaking ? (parseFloat(buyInVal) * players.length).toFixed(3) : '0.000',
       currency: 'CRAZY8',
-      buyInAmount: '0.000',
+      buyInAmount: buyInVal,
     },
   };
 }

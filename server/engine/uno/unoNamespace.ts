@@ -130,9 +130,9 @@ export function setupUnoNamespace(unoIo: Namespace, roomManager: RoomManager) {
       const resolvedAvatar = dbUser.avatar || avatar || '🦊';
 
       socket.join(`user:${validAccountId}`);
-      socket.join(`wallet:${cleanAddress}`);
+      const buyIn = payload?.buyIn !== undefined && payload?.buyIn !== null && payload?.buyIn !== '' ? String(payload.buyIn) : '100';
 
-      const result = roomManager.quickJoin(validAccountId, socket.id, resolvedName, resolvedAvatar, cleanAddress);
+      const result = roomManager.quickJoin(validAccountId, socket.id, resolvedName, resolvedAvatar, cleanAddress, buyIn);
       if (result.success && result.room) {
         socket.join(result.room.roomId);
         const resolvedId = result.playerId || validAccountId;
@@ -316,6 +316,10 @@ export function setupUnoNamespace(unoIo: Namespace, roomManager: RoomManager) {
       const { room, player } = getPlayerInCurrentRoom();
       if (!room || !player) {
         if (typeof callback === 'function') callback({ success: false, error: 'Room not found' });
+        return;
+      }
+      if (room.isQuickMatch) {
+        if (typeof callback === 'function') callback({ success: false, error: 'Bots are strictly forbidden in Quick Match contest rooms' });
         return;
       }
       if (room.hostId !== player.id) {

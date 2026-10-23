@@ -504,7 +504,8 @@ export class RoomManager {
     socketId: string,
     playerName: string,
     avatar: string,
-    address?: string
+    address?: string,
+    buyIn: string = '100'
   ): { success: boolean; room?: GameRoom; isHost?: boolean; playerId?: string; error?: string } {
     const cleanAddr = address && address.startsWith('0x') ? address.trim().toLowerCase() : undefined;
     if (!cleanAddr) {
@@ -519,11 +520,11 @@ export class RoomManager {
     this.clearDisconnectTimer(canonicalId);
     this.clearDisconnectTimer(accountId);
 
-    // If already in a room, resume or return it
+    // If already in an active Quick Match room lobby, resume it. If in an old practice/custom table, exit it.
     const existingRoomId = this.accountToRoomId.get(canonicalId) || this.accountToRoomId.get(accountId);
     if (existingRoomId) {
       const existing = this.rooms.get(existingRoomId);
-      if (existing) {
+      if (existing && existing.isQuickMatch && existing.status === 'lobby') {
         const resumeRes = this.resumeSession(canonicalId, socketId, existing.roomCode, cleanAddr);
         if (resumeRes.success && resumeRes.room) {
           return {
@@ -533,16 +534,24 @@ export class RoomManager {
             playerId: resumeRes.playerId || canonicalId,
           };
         }
+      } else if (existing && !existing.isQuickMatch) {
+        // Leave stale practice room so the player enters a clean Quick Match contest room
+        this.handleLeaveRoom(canonicalId, socketId);
       }
     }
 
     // RULE: Quick Match ONLY matches real users who join, and NEVER adds bots.
     // 1. Search for an open Quick Match room with space for more real players
     let openRoom: GameRoom | null = null;
+    const requestedStakeNum = parseFloat(buyIn || '100');
     for (const r of this.rooms.values()) {
       if (r.isQuickMatch && r.status === 'lobby' && r.players.length < 5) {
-        openRoom = r;
-        break;
+        if (parseFloat(r.buyInAmount || '0') === requestedStakeNum || !openRoom) {
+          openRoom = r;
+          if (parseFloat(r.buyInAmount || '0') === requestedStakeNum) {
+            break;
+          }
+        }
       }
     }
 
@@ -558,12 +567,16 @@ export class RoomManager {
       }
     }
 
-    // 2. Otherwise create a fresh Quick Match room for real users only (0 bots added)
+    // 2. Otherwise create a fresh Quick Match room with the Pot feature enabled (0 bots added)
     try {
-      const newRoom = this.createRoom(canonicalId, socketId, resolvedName, resolvedAvatar, '0.000', cleanAddr);
+      const parsedBuyIn = (buyIn !== undefined && buyIn !== null && buyIn !== '') ? buyIn : '100';
+      const newRoom = this.createRoom(canonicalId, socketId, resolvedName, resolvedAvatar, parsedBuyIn, cleanAddr);
       newRoom.isQuickMatch = true;
       newRoom.customMode = 'Quick Match';
-      newRoom.description = 'Real players only. Fast matching.';
+      const stakeNum = parseFloat(parsedBuyIn);
+      newRoom.description = stakeNum > 0
+        ? `${stakeNum} $CRAZY8 Pot • Contest Match (Real players only)`
+        : 'Real players only. Fast matching.';
       this.broadcastRoomState(newRoom);
       return { success: true, room: newRoom, isHost: true, playerId: canonicalId };
     } catch (err: any) {
