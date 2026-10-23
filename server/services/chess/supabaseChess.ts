@@ -103,8 +103,9 @@ export async function upsertChessPlayer(walletAddress: string, username?: string
   if (!client || !walletAddress) return null;
 
   try {
-    const cleanAddr = walletAddress.toLowerCase();
-    const displayName = username || `Player_${cleanAddr.slice(2, 6)}`;
+    const cleanAddr = walletAddress.toLowerCase().trim();
+    const hasCustomName = Boolean(username && !username.startsWith('Player_') && !username.startsWith('Player ') && username.trim().length > 0);
+    const displayName = hasCustomName ? username!.trim() : `${cleanAddr.slice(0, 6)}...${cleanAddr.slice(-4)}`;
 
     const { data: existing, error: readError } = await client
       .from('players')
@@ -118,7 +119,7 @@ export async function upsertChessPlayer(walletAddress: string, username?: string
 
     if (existing) {
       const updateData: any = { last_active: new Date().toISOString(), last_seen: new Date().toISOString() };
-      if (username) updateData.username = username;
+      if (hasCustomName) updateData.username = username!.trim();
       if (existing.elo_rating === null || existing.elo_rating === undefined) {
         updateData.elo_rating = DEFAULT_ELO;
       }
@@ -180,8 +181,9 @@ export async function upsertChessPlayer(walletAddress: string, username?: string
  * Get player stats by wallet address
  */
 export async function getChessPlayerStats(walletAddress: string): Promise<any> {
-  const cleanAddr = walletAddress?.toLowerCase() || '';
+  const cleanAddr = walletAddress?.toLowerCase().trim() || '';
   const client = getChessSupabaseClient();
+  const fallbackName = cleanAddr ? `${cleanAddr.slice(0, 6)}...${cleanAddr.slice(-4)}` : 'Player';
 
   if (!client || !cleanAddr) {
     return {
@@ -191,7 +193,7 @@ export async function getChessPlayerStats(walletAddress: string): Promise<any> {
       draws: 0,
       total_games: 0,
       win_rate: 0,
-      username: `Player_${cleanAddr.slice(2, 6)}`,
+      username: fallbackName,
       wallet_address: cleanAddr,
       is_online: true,
     };
@@ -217,7 +219,7 @@ export async function getChessPlayerStats(walletAddress: string): Promise<any> {
         draws: created?.draws ?? 0,
         total_games: created?.total_games ?? 0,
         win_rate: 0,
-        username: created?.username || `Player_${cleanAddr.slice(2, 6)}`,
+        username: created?.username || fallbackName,
         wallet_address: cleanAddr,
         is_online: true,
       };
@@ -235,7 +237,7 @@ export async function getChessPlayerStats(walletAddress: string): Promise<any> {
       draws: norm?.draws ?? 0,
       total_games: total,
       win_rate: winRate,
-      username: norm?.username || `Player_${cleanAddr.slice(2, 6)}`,
+      username: norm?.username || fallbackName,
       wallet_address: cleanAddr,
       avatar_url: norm?.avatar_url,
       is_online: Boolean(data.is_online),
@@ -249,7 +251,7 @@ export async function getChessPlayerStats(walletAddress: string): Promise<any> {
       draws: 0,
       total_games: 0,
       win_rate: 0,
-      username: `Player_${cleanAddr.slice(2, 6)}`,
+      username: fallbackName,
       wallet_address: cleanAddr,
       is_online: true,
     };

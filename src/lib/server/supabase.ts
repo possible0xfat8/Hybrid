@@ -36,8 +36,9 @@ export function getSupabase(): SupabaseClient | null {
 export async function getCrazy8ProfileByAddress(address: string) {
   const client = getSupabase();
   const cleanAddr = address.trim().toLowerCase();
+  const shortAddr = `${cleanAddr.slice(0, 6)}...${cleanAddr.slice(-4)}`;
   const defaultTag = `Player_${cleanAddr.slice(2, 6)}`;
-  const defaultName = `Player ${cleanAddr.slice(2, 6)}`;
+  const defaultName = shortAddr;
 
   if (!client) {
     return {
@@ -134,7 +135,7 @@ export async function upsertCrazy8Profile(params: {
 }) {
   const client = getSupabase();
   const cleanAddr = params.address ? params.address.trim().toLowerCase() : undefined;
-  const id = params.id || (cleanAddr ? `wallet_${cleanAddr}` : `user_${Date.now()}`);
+  const id = cleanAddr ? `wallet_${cleanAddr}` : (params.id || `user_${Date.now()}`);
 
   if (!client) {
     return { id, ...params, address: cleanAddr };

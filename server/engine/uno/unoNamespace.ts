@@ -1,6 +1,6 @@
 import { Namespace, Socket } from 'socket.io';
 import { RoomManager } from './roomManager';
-import { serverDb } from './database';
+import { serverDb, isDefaultName } from './database';
 import { CardColor } from '../../../src/types/uno';
 
 export function setupUnoNamespace(unoIo: Namespace, roomManager: RoomManager) {
@@ -124,10 +124,15 @@ export function setupUnoNamespace(unoIo: Namespace, roomManager: RoomManager) {
         return;
       }
 
-      const dbUser = serverDb.getUserByAddress(cleanAddress) || serverDb.upsertUser({ id: accountId || `wallet_${cleanAddress}`, address: cleanAddress, name: playerName, avatar });
+      const canonicalId = `wallet_${cleanAddress}`;
+      const dbUser = serverDb.getUserByAddress(cleanAddress) || serverDb.upsertUser({ id: canonicalId, address: cleanAddress, name: playerName, avatar });
+      if (playerName && !isDefaultName(playerName) && (isDefaultName(dbUser.name) || !dbUser.name)) {
+        dbUser.name = playerName.trim();
+        serverDb.save();
+      }
       const validAccountId = dbUser.id;
-      const resolvedName = dbUser.name || playerName || 'Player';
-      const resolvedAvatar = dbUser.avatar || avatar || '🦊';
+      const resolvedName = (playerName && !isDefaultName(playerName)) ? playerName.trim() : (dbUser.name || playerName || 'Player');
+      const resolvedAvatar = avatar || dbUser.avatar || '🦊';
 
       socket.join(`user:${validAccountId}`);
       const buyIn = payload?.buyIn !== undefined && payload?.buyIn !== null && payload?.buyIn !== '' ? String(payload.buyIn) : '100';
@@ -156,13 +161,13 @@ export function setupUnoNamespace(unoIo: Namespace, roomManager: RoomManager) {
     });
 
     socket.on('profile:sync', (data: any, callback?: any) => {
-      const targetId = data?.accountId || data?.id;
       const rawAddress = data?.address && typeof data.address === 'string' && data.address.trim().startsWith('0x')
         ? data.address.trim().toLowerCase()
         : undefined;
+      const canonicalId = rawAddress ? `wallet_${rawAddress}` : (data?.accountId || data?.id || `user_${Date.now()}`);
 
       const user = serverDb.upsertUser({
-        id: targetId || (rawAddress ? `wallet_${rawAddress}` : `user_${Date.now()}`),
+        id: canonicalId,
         address: rawAddress,
         name: data?.name,
         avatar: data?.avatar,
@@ -206,10 +211,15 @@ export function setupUnoNamespace(unoIo: Namespace, roomManager: RoomManager) {
           return;
         }
 
-        const dbUser = serverDb.getUserByAddress(cleanAddress) || serverDb.upsertUser({ id: accountId || `wallet_${cleanAddress}`, address: cleanAddress, name: playerName, avatar });
+        const canonicalId = `wallet_${cleanAddress}`;
+        const dbUser = serverDb.getUserByAddress(cleanAddress) || serverDb.upsertUser({ id: canonicalId, address: cleanAddress, name: playerName, avatar });
+        if (playerName && !isDefaultName(playerName) && (isDefaultName(dbUser.name) || !dbUser.name)) {
+          dbUser.name = playerName.trim();
+          serverDb.save();
+        }
         const validAccountId = dbUser.id;
-        const resolvedName = dbUser.name || playerName || 'Player 1';
-        const resolvedAvatar = dbUser.avatar || avatar || '🦊';
+        const resolvedName = (playerName && !isDefaultName(playerName)) ? playerName.trim() : (dbUser.name || playerName || 'Player 1');
+        const resolvedAvatar = avatar || dbUser.avatar || '🦊';
 
         const room = roomManager.createRoom(validAccountId, socket.id, resolvedName, resolvedAvatar, buyIn, cleanAddress);
         socket.join(room.roomId);
@@ -242,10 +252,15 @@ export function setupUnoNamespace(unoIo: Namespace, roomManager: RoomManager) {
           return;
         }
 
-        const dbUser = serverDb.getUserByAddress(cleanAddress) || serverDb.upsertUser({ id: accountId || `wallet_${cleanAddress}`, address: cleanAddress, name: playerName, avatar });
+        const canonicalId = `wallet_${cleanAddress}`;
+        const dbUser = serverDb.getUserByAddress(cleanAddress) || serverDb.upsertUser({ id: canonicalId, address: cleanAddress, name: playerName, avatar });
+        if (playerName && !isDefaultName(playerName) && (isDefaultName(dbUser.name) || !dbUser.name)) {
+          dbUser.name = playerName.trim();
+          serverDb.save();
+        }
         const validAccountId = dbUser.id;
-        const resolvedName = dbUser.name || playerName || 'Player';
-        const resolvedAvatar = dbUser.avatar || avatar || '🦁';
+        const resolvedName = (playerName && !isDefaultName(playerName)) ? playerName.trim() : (dbUser.name || playerName || 'Player');
+        const resolvedAvatar = avatar || dbUser.avatar || '🦁';
 
         const result = roomManager.joinRoom(roomCode, validAccountId, socket.id, resolvedName, resolvedAvatar, cleanAddress);
         if (result.success && result.room) {

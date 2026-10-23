@@ -1,7 +1,7 @@
 import { Server as SocketIOServer } from 'socket.io';
 import { GameRoom } from './gameEngine';
 import { CardColor, CardsDrawnEvent, CardPlayedEvent, ChatMessage, PublicRoomSummary, Player } from '../../../src/types/uno';
-import { serverDb } from './database';
+import { serverDb, isDefaultName } from './database';
 import { settleMatchOnChain, getEscrowAddress } from '../../services/uno/escrowService';
 
 export class RoomManager {
@@ -226,8 +226,12 @@ export class RoomManager {
     }
 
     const dbUser = serverDb.getUserByAddress(cleanAddr) || serverDb.linkOrGetUserByAddress(cleanAddr, accountId, { name: playerName, avatar });
-    const resolvedName = dbUser.name || playerName || 'Player 1';
-    const resolvedAvatar = dbUser.avatar || avatar || '🦊';
+    if (playerName && !isDefaultName(playerName) && (isDefaultName(dbUser.name) || !dbUser.name)) {
+      dbUser.name = playerName.trim();
+      serverDb.save();
+    }
+    const resolvedName = (playerName && !isDefaultName(playerName)) ? playerName.trim() : (dbUser.name || playerName || 'Player 1');
+    const resolvedAvatar = avatar || dbUser.avatar || '🦊';
     const canonicalAccountId = dbUser.id;
 
     const roomId = `room_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -407,8 +411,12 @@ export class RoomManager {
     }
 
     const dbUser = serverDb.getUserByAddress(cleanAddr) || serverDb.linkOrGetUserByAddress(cleanAddr, accountId, { name: playerName, avatar });
-    const resolvedName = dbUser.name || playerName || `Player ${room.players.length + 1}`;
-    const resolvedAvatar = dbUser.avatar || avatar || '🦁';
+    if (playerName && !isDefaultName(playerName) && (isDefaultName(dbUser.name) || !dbUser.name)) {
+      dbUser.name = playerName.trim();
+      serverDb.save();
+    }
+    const resolvedName = (playerName && !isDefaultName(playerName)) ? playerName.trim() : (dbUser.name || playerName || `Player ${room.players.length + 1}`);
+    const resolvedAvatar = avatar || dbUser.avatar || '🦁';
     const canonicalId = dbUser.id;
 
     // New player joining
@@ -513,8 +521,12 @@ export class RoomManager {
     }
 
     const dbUser = serverDb.getUserByAddress(cleanAddr) || serverDb.linkOrGetUserByAddress(cleanAddr, accountId, { name: playerName, avatar });
-    const resolvedName = dbUser.name || playerName || 'Player';
-    const resolvedAvatar = dbUser.avatar || avatar || '🦊';
+    if (playerName && !isDefaultName(playerName) && (isDefaultName(dbUser.name) || !dbUser.name)) {
+      dbUser.name = playerName.trim();
+      serverDb.save();
+    }
+    const resolvedName = (playerName && !isDefaultName(playerName)) ? playerName.trim() : (dbUser.name || playerName || 'Player');
+    const resolvedAvatar = avatar || dbUser.avatar || '🦊';
     const canonicalId = dbUser.id;
 
     this.clearDisconnectTimer(canonicalId);

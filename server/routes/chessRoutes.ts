@@ -9,6 +9,7 @@ import {
   getChessNotifications,
   upsertChessPlayer,
   updateChessUserStatus,
+  getChessSupabaseClient,
 } from '../services/chess/supabaseChess';
 
 export function createChessRoutes(engine: ChessEngine): Router {
@@ -51,17 +52,17 @@ export function createChessRoutes(engine: ChessEngine): Router {
   });
 
   // User Stats from Supabase
-  router.get('/users/:address/stats', async (req: Request, res: Response) => {
+  router.get(['/users/:address/stats', '/player/:address/stats'], async (req: Request, res: Response) => {
     const { address } = req.params;
-    const cleanAddr = address ? address.toLowerCase() : '';
+    const cleanAddr = address ? address.toLowerCase().trim() : '';
     const stats = await getChessPlayerStats(cleanAddr);
     res.json(stats);
   });
 
   // User Match History from Supabase
-  router.get('/users/:address/history', async (req: Request, res: Response) => {
+  router.get(['/users/:address/history', '/player/:address/history'], async (req: Request, res: Response) => {
     const { address } = req.params;
-    const cleanAddr = address ? address.toLowerCase() : '';
+    const cleanAddr = address ? address.toLowerCase().trim() : '';
     const limit = parseInt(req.query.limit as string, 10) || 15;
     const history = await getChessMatchHistory(cleanAddr, limit);
     res.json(history);
@@ -118,11 +119,61 @@ export function createChessRoutes(engine: ChessEngine): Router {
     res.json({ count: 184 });
   });
 
+  // Save Player Display Name
+  router.post('/player/:address/username', async (req: Request, res: Response) => {
+    try {
+      const { address } = req.params;
+      const { username, name } = req.body;
+      const cleanAddr = address ? address.toLowerCase().trim() : '';
+      const chosenName = username || name;
+      if (!cleanAddr) {
+        return res.status(400).json({ success: false, error: 'Valid wallet address required' });
+      }
+
+      const player = await upsertChessPlayer(cleanAddr, chosenName);
+      if (player) {
+        for (const p of engine.playerSockets.values()) {
+          if (p.walletAddress === cleanAddr) {
+            p.playerName = player.username;
+          }
+        }
+        return res.json({ success: true, player });
+      }
+
+      res.json({
+        success: true,
+        player: {
+          username: chosenName || `${cleanAddr.slice(0, 6)}...${cleanAddr.slice(-4)}`,
+          wallet_address: cleanAddr,
+        },
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message || 'Error updating username' });
+    }
+  });
+
+  // Save Player Avatar
+  router.post('/player/:address/avatar', async (req: Request, res: Response) => {
+    try {
+      const { address } = req.params;
+      const cleanAddr = address ? address.toLowerCase().trim() : '';
+      const avatarUrl = req.body.avatarUrl || req.body.avatar || '♟️';
+      const client = getChessSupabaseClient();
+      if (client && cleanAddr) {
+        await client.from('players').update({ avatar_url: avatarUrl }).eq('player_id', cleanAddr);
+      }
+      res.json({ success: true, avatarUrl });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   router.post('/users/sync', async (req: Request, res: Response) => {
-    const { wallet_address, address, username } = req.body;
-    const targetAddr = wallet_address || address;
+    const { wallet_address, walletAddress, address, username, name } = req.body;
+    const targetAddr = wallet_address || walletAddress || address;
+    const targetName = username || name;
     if (targetAddr) {
-      const player = await upsertChessPlayer(targetAddr, username);
+      const player = await upsertChessPlayer(targetAddr, targetName);
       return res.json({ success: true, player });
     }
     res.json({ success: true });

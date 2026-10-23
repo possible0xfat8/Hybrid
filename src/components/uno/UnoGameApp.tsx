@@ -54,6 +54,7 @@ import {
   getAccountProfileForWallet,
   saveAccountProfile,
   syncAccountWithServerProfile,
+  isDefaultName,
   getActiveRoomCode,
   setActiveRoomCode,
   getLastConnectedWallet,
@@ -470,8 +471,23 @@ export default function App() {
                   avatar: synced.avatar,
                   bio: synced.bio,
                   address: cleanAddr,
-                  isExplicitUpdate: false,
+                  isExplicitUpdate: !isDefaultName(synced.name),
                 });
+              }
+              // If local profile has a custom name but database only had a default name, push update to database
+              if (!isDefaultName(synced.name) && isDefaultName(dbUser.name)) {
+                fetch('/api/profile', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    id: synced.id,
+                    accountId: synced.id,
+                    name: synced.name,
+                    avatar: synced.avatar,
+                    bio: synced.bio,
+                    address: cleanAddr,
+                  }),
+                }).catch(() => {});
               }
             }
             return;

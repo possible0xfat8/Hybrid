@@ -132,6 +132,16 @@ export function saveAccountProfile(updates: Partial<AccountProfile>): AccountPro
   return merged;
 }
 
+export function isDefaultName(name?: string | null): boolean {
+  if (!name || !name.trim()) return true;
+  const n = name.trim();
+  if (n === 'Player' || n === 'Anonymous Player' || n === 'Arcade Player') return true;
+  if (/^Player[ _#]/i.test(n)) return true;
+  if (/^HemiPlayer_/i.test(n)) return true;
+  if (/^0x[a-fA-F0-9]{4}\.\.\.[a-fA-F0-9]{4}$/.test(n)) return true;
+  return false;
+}
+
 export function syncAccountWithServerProfile(serverUser: {
   id: string;
   name: string;
@@ -148,13 +158,23 @@ export function syncAccountWithServerProfile(serverUser: {
     return null;
   }
 
+  const existingLocal = getAccountProfileForWallet(cleanAddr);
+
+  // If local profile has a custom name and server returned a default name, keep local custom name!
+  let resolvedName = serverUser.name;
+  if (existingLocal?.name && !isDefaultName(existingLocal.name) && isDefaultName(serverUser.name)) {
+    resolvedName = existingLocal.name;
+  } else if (!resolvedName || isDefaultName(resolvedName)) {
+    resolvedName = existingLocal?.name || `${cleanAddr.slice(0, 6)}...${cleanAddr.slice(-4)}`;
+  }
+
   const profile: AccountProfile = {
     id: `wallet_${cleanAddr}`,
-    name: serverUser.name || `${cleanAddr.slice(0, 6)}...${cleanAddr.slice(-4)}`,
-    avatar: serverUser.avatar || '🦊',
-    bio: serverUser.bio || 'Hemi Testnet Card Champion',
+    name: resolvedName,
+    avatar: serverUser.avatar || existingLocal?.avatar || '🦊',
+    bio: serverUser.bio || existingLocal?.bio || 'Hemi Testnet Card Champion',
     address: cleanAddr,
-    stats: serverUser.stats,
+    stats: serverUser.stats || existingLocal?.stats,
   };
 
   try {

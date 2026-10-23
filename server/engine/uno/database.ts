@@ -89,6 +89,16 @@ export interface DatabaseSchema {
   >;
 }
 
+export function isDefaultName(name?: string | null): boolean {
+  if (!name || !name.trim()) return true;
+  const n = name.trim();
+  if (n === 'Player' || n === 'Anonymous Player' || n === 'Arcade Player') return true;
+  if (/^Player[ _#]/i.test(n)) return true;
+  if (/^HemiPlayer_/i.test(n)) return true;
+  if (/^0x[a-fA-F0-9]{4}\.\.\.[a-fA-F0-9]{4}$/.test(n)) return true;
+  return false;
+}
+
 const DB_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DB_DIR, 'uno_db.json');
 
@@ -103,6 +113,21 @@ export class ServerDatabase {
     this.seedDefaultUsers();
     this.initLocalDisk();
     this.initSupabaseSync();
+  }
+
+  private cleanDatabaseIntegrity(): void {
+    const fixedUsers: Record<string, UserProfileRecord> = {};
+    for (const [key, user] of Object.entries(this.data.users)) {
+      if (key.startsWith('wallet_0x')) {
+        const canonicalAddr = key.replace('wallet_', '').toLowerCase();
+        user.id = key;
+        user.address = canonicalAddr;
+        fixedUsers[key] = user;
+      } else {
+        fixedUsers[key] = user;
+      }
+    }
+    this.data.users = fixedUsers;
   }
 
   private initLocalDisk(): void {
@@ -126,7 +151,8 @@ export class ServerDatabase {
           if (parsed.recentRooms) {
             this.data.recentRooms = { ...this.data.recentRooms, ...parsed.recentRooms };
           }
-          console.log(`[Database:UNO] Loaded ${Object.keys(this.data.users).length} profiles from local disk cache.`);
+          this.cleanDatabaseIntegrity();
+          console.log(`[Database:UNO] Loaded and verified ${Object.keys(this.data.users).length} profiles from local disk cache.`);
         }
       }
     } catch (err: any) {
@@ -316,13 +342,25 @@ export class ServerDatabase {
 
   public getUserByAddress(address: string): UserProfileRecord | null {
     if (!address) return null;
-    const clean = address.toLowerCase();
+    const clean = address.trim().toLowerCase();
     const canonicalId = `wallet_${clean}`;
     if (this.data.users[canonicalId]) {
-      return this.data.users[canonicalId];
+      const u = this.data.users[canonicalId];
+      if (u.address?.toLowerCase() !== clean || u.id !== canonicalId) {
+        u.address = clean;
+        u.id = canonicalId;
+      }
+      return u;
     }
     for (const user of Object.values(this.data.users)) {
-      if (user.address?.toLowerCase() === clean) return user;
+      if (user.address?.toLowerCase() === clean) {
+        if (user.id !== canonicalId && !user.id.startsWith('wallet_')) {
+          delete this.data.users[user.id];
+          user.id = canonicalId;
+          this.data.users[canonicalId] = user;
+        }
+        return user;
+      }
     }
     return null;
   }
@@ -365,19 +403,39 @@ export class ServerDatabase {
     if (existing) {
       existing.lastSeen = Date.now();
       if (existing.id !== canonicalId) {
-        delete this.data.users[existing.id];
+        if (!existing.id.startsWith('wallet_')) {
+          delete this.data.users[existing.id];
+        }
         existing.id = canonicalId;
         existing.address = cleanAddress;
         this.data.users[canonicalId] = existing;
+      }
+      // If custom non-default name provided and existing name is default, update
+      if (fallbackData?.name && !isDefaultName(fallbackData.name) && isDefaultName(existing.name)) {
+        existing.name = fallbackData.name.trim();
+        const parts = existing.tag.split('#');
+        const disc = parts[1] || Math.floor(1000 + Math.random() * 9000).toString();
+        const cleanName = existing.name.replace(/[^a-zA-Z0-9]/g, '').trim() || 'Player';
+        existing.tag = `${cleanName}#${disc}`;
       }
       syncProfileToSupabase(existing);
       this.save();
       return existing;
     }
 
-    const fallbackUser = fallbackId ? this.data.users[fallbackId] : null;
-    const defaultName = fallbackUser?.name || fallbackData?.name || `Player_${cleanAddress.slice(2, 6)}`;
-    const tag = fallbackUser?.tag || `${defaultName}#${Math.floor(1000 + Math.random() * 9000)}`;
+    // Only inherit fallbackUser if it was an unlinked guest account (NEVER another wallet account!)
+    const isGuestFallback = Boolean(fallbackId && !fallbackId.startsWith('wallet_') && !fallbackId.startsWith('0x'));
+    const fallbackUser = isGuestFallback ? this.data.users[fallbackId!] : null;
+
+    let defaultName = `${cleanAddress.slice(0, 6)}...${cleanAddress.slice(-4)}`;
+    if (fallbackData?.name && !isDefaultName(fallbackData.name)) {
+      defaultName = fallbackData.name.trim();
+    } else if (fallbackUser?.name && !isDefaultName(fallbackUser.name)) {
+      defaultName = fallbackUser.name.trim();
+    }
+
+    const cleanName = defaultName.replace(/[^a-zA-Z0-9]/g, '').trim() || 'Player';
+    const tag = `${cleanName}#${Math.floor(1000 + Math.random() * 9000)}`;
 
     const newUser: UserProfileRecord = {
       id: canonicalId,
@@ -405,7 +463,8 @@ export class ServerDatabase {
       notifications: [],
     };
 
-    if (fallbackId && fallbackId !== canonicalId && this.data.users[fallbackId]) {
+    // ONLY delete temporary guest account
+    if (isGuestFallback && fallbackId && this.data.users[fallbackId]) {
       delete this.data.users[fallbackId];
     }
 
@@ -473,8 +532,12 @@ export class ServerDatabase {
     updates: { name?: string; avatar?: string; bio?: string; address?: string }
   ): UserProfileRecord {
     let user: UserProfileRecord | null = null;
-    if (updates.address) {
-      user = this.linkOrGetUserByAddress(updates.address, id, updates);
+    const cleanAddr = updates.address && updates.address.trim().startsWith('0x')
+      ? updates.address.trim().toLowerCase()
+      : undefined;
+
+    if (cleanAddr) {
+      user = this.getUserByAddress(cleanAddr) || this.linkOrGetUserByAddress(cleanAddr, id, updates);
     } else if (id) {
       user = this.getUser(id);
     }
@@ -494,12 +557,13 @@ export class ServerDatabase {
     if (updates.avatar) user.avatar = updates.avatar;
     if (updates.bio !== undefined) user.bio = updates.bio.trim().substring(0, 120);
 
-    if (updates.address) {
-      const cleanAddr = updates.address.trim().toLowerCase();
+    if (cleanAddr) {
       user.address = cleanAddr;
       const canonicalId = `wallet_${cleanAddr}`;
       if (user.id !== canonicalId) {
-        delete this.data.users[user.id];
+        if (!user.id.startsWith('wallet_')) {
+          delete this.data.users[user.id];
+        }
         user.id = canonicalId;
         this.data.users[canonicalId] = user;
       }
@@ -768,14 +832,27 @@ export class ServerDatabase {
   }
 
   public upsertUser(user: Partial<UserProfileRecord> & { id: string }): UserProfileRecord {
-    const existing = this.data.users[user.id];
+    const cleanAddr = user.address && user.address.trim().startsWith('0x')
+      ? user.address.trim().toLowerCase()
+      : undefined;
+    const canonicalId = cleanAddr ? `wallet_${cleanAddr}` : user.id;
+
+    const existing = this.data.users[canonicalId] || (cleanAddr ? this.getUserByAddress(cleanAddr) : this.data.users[user.id]);
+
+    const updatedName = user.name && !isDefaultName(user.name)
+      ? user.name.trim()
+      : (existing?.name || user.name || (cleanAddr ? `${cleanAddr.slice(0, 6)}...${cleanAddr.slice(-4)}` : 'Anonymous Player'));
+
+    const cleanName = updatedName.replace(/[^a-zA-Z0-9]/g, '').trim() || 'Player';
+    const tag = user.tag || existing?.tag || `${cleanName}#${Math.floor(1000 + Math.random() * 9000)}`;
+
     const updated: UserProfileRecord = {
-      id: user.id,
-      tag: user.tag || existing?.tag || `Player#${Math.floor(1000 + Math.random() * 9000)}`,
-      name: user.name || existing?.name || 'Anonymous Player',
+      id: canonicalId,
+      tag,
+      name: updatedName,
       avatar: user.avatar || existing?.avatar || '🎮',
       bio: user.bio || existing?.bio || 'Web3 gamer on Hemi',
-      address: user.address || existing?.address,
+      address: cleanAddr || existing?.address,
       status: user.status || existing?.status || 'online',
       currentRoomCode: user.currentRoomCode !== undefined ? user.currentRoomCode : existing?.currentRoomCode,
       lastSeen: Date.now(),
@@ -791,7 +868,11 @@ export class ServerDatabase {
       hasClaimedAirdrop: user.hasClaimedAirdrop !== undefined ? user.hasClaimedAirdrop : (existing?.hasClaimedAirdrop || false),
     };
 
-    this.data.users[user.id] = updated;
+    if (user.id !== canonicalId && !user.id.startsWith('wallet_') && this.data.users[user.id]) {
+      delete this.data.users[user.id];
+    }
+
+    this.data.users[canonicalId] = updated;
     syncProfileToSupabase(updated);
     this.save();
     return updated;

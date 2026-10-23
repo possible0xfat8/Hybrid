@@ -60,17 +60,18 @@ export function UserProfileClient({ walletAddress }: UserProfileClientProps) {
         const profileRes = await fetch(`/api/profile/by-address/${encodeURIComponent(walletAddress.toLowerCase())}`);
         if (profileRes.ok) {
           const profileData = await profileRes.json();
-          if (profileData.user) {
+          const p = profileData.user || profileData;
+          if (p && (p.name || p.id)) {
             setStats({
-              username: profileData.user.name,
-              avatar_url: profileData.user.avatar,
-              elo_rating: profileData.user.stats?.elo || DEFAULT_ELO,
-              total_games: profileData.user.stats?.matchesPlayed || 0,
-              wins: profileData.user.stats?.wins || 0,
-              losses: profileData.user.stats?.losses || 0,
-              win_rate: profileData.user.stats?.winRate || '0',
+              username: p.name,
+              avatar_url: p.avatar,
+              elo_rating: p.stats?.elo || DEFAULT_ELO,
+              total_games: p.stats?.matchesPlayed || 0,
+              wins: p.stats?.wins || 0,
+              losses: p.stats?.losses || 0,
+              win_rate: p.stats?.winRate || '0',
             });
-            if (profileData.user.avatar) setAvatarUrl(profileData.user.avatar);
+            if (p.avatar) setAvatarUrl(p.avatar);
           }
         }
       }
