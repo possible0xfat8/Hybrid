@@ -374,9 +374,23 @@ export function setupUnoNamespace(unoIo: Namespace, roomManager: RoomManager) {
           return;
         }
 
-        if (room.players.length < 2) {
-          if (typeof callback === 'function') callback({ success: false, error: 'At least 2 players are required to start.' });
+        const minRequired = room.isQuickMatch ? 2 : 3;
+        if (room.players.length < minRequired) {
+          if (typeof callback === 'function') callback({ success: false, error: `At least ${minRequired} players are required to start.` });
           return;
+        }
+
+        if (room.isStaking && parseFloat(room.buyInAmount || '0') > 0) {
+          const unstaked = room.players.find(p => !p.isBot && !room.hasPlayerStaked(p.id));
+          if (unstaked) {
+            if (typeof callback === 'function') {
+              callback({
+                success: false,
+                error: `Cannot start: ${unstaked.name} has not staked the required ${room.buyInAmount} $CRAZY8 chips.`,
+              });
+            }
+            return;
+          }
         }
 
         const started = room.startGame();

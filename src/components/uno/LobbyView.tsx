@@ -302,7 +302,15 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
     const allPlayersReady = gameState.players.every((p) => p.isReady || p.isBot);
     // Quick Match allows 2-5 real players (1v1 or multiplayer contest), custom tables require 3-5
     const minRequired = isQuickMatch ? 2 : 3;
-    const canStart = playerCount >= minRequired && playerCount <= 5 && allPlayersReady;
+    const requiredStake =
+      gameState.isStaking && parseFloat(gameState.escrowPot?.buyInAmount || gameState.buyInAmount || '0') > 0
+        ? parseFloat(gameState.escrowPot?.buyInAmount || gameState.buyInAmount || '0')
+        : 0;
+    const hasInsufficientTokens =
+      isWalletConnected && myPlayer && requiredStake > 0 && (myPlayer.tokenBalance ?? 10000) < requiredStake;
+    const hasAnyInsufficientPlayer =
+      requiredStake > 0 && gameState.players.some((p) => !p.isBot && (p.tokenBalance ?? 10000) < requiredStake);
+    const canStart = playerCount >= minRequired && playerCount <= 5 && allPlayersReady && !hasAnyInsufficientPlayer;
 
     const handleCopyCode = () => {
       navigator.clipboard.writeText(gameState.roomCode);
@@ -679,6 +687,30 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
           </div>
         )}
 
+        {/* Insufficient Token Warning for current player */}
+        {hasInsufficientTokens && (
+          <div className="mt-3 sm:mt-4 p-3 rounded-xl sm:rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between gap-2.5 text-xs animate-in fade-in">
+            <div className="flex items-center gap-2 text-rose-300 min-w-0">
+              <span className="text-base shrink-0">⚠️</span>
+              <div className="min-w-0">
+                <div className="font-bold text-white text-[11px] sm:text-xs">Insufficient $CRAZY8 Chips</div>
+                <div className="text-[10px] sm:text-[11px] text-rose-200/80">
+                  This table requires a stake of <strong className="text-rose-100 font-mono">{requiredStake} chips</strong>, but your balance is <strong className="text-rose-100 font-mono">{myPlayer?.tokenBalance ?? 0} chips</strong>.
+                </div>
+              </div>
+            </div>
+            {onOpenAirdrop && (
+              <button
+                type="button"
+                onClick={onOpenAirdrop}
+                className="px-3 py-1.5 rounded-lg sm:rounded-xl bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white font-bold text-[10px] sm:text-xs transition-all active:scale-95 cursor-pointer shrink-0 shadow-md shadow-rose-500/20"
+              >
+                Claim 10,000 Free
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Players List */}
         <div className="py-4 sm:py-6 space-y-2.5 sm:space-y-3">
           <div className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-slate-400 flex items-center justify-between">
@@ -730,6 +762,11 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                         {isMe && (
                           <span className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded bg-[#FF4600] text-white font-bold">
                             YOU
+                          </span>
+                        )}
+                        {requiredStake > 0 && !p.isBot && (p.tokenBalance ?? 10000) < requiredStake && (
+                          <span className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30">
+                            ⚠️ Low Chips ({p.tokenBalance ?? 0})
                           </span>
                         )}
                       </div>
@@ -879,8 +916,12 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 >
                   <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
                   <span>
-                    {playerCount <= 2
-                      ? 'Waiting for Players (3+ Needed)'
+                    {playerCount < minRequired
+                      ? isQuickMatch
+                        ? 'Waiting for Players (2+ Needed)'
+                        : 'Waiting for Players (3+ Needed)'
+                      : hasAnyInsufficientPlayer
+                      ? 'Player Needs More Chips'
                       : !myPlayer?.isReady
                       ? "Click 'I am Ready!' First"
                       : `Waiting for All Ready (${readyPlayersCount}/${playerCount})`}

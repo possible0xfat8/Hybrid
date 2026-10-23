@@ -448,10 +448,17 @@ export class GameRoom {
   }
 
   public canStart(): boolean {
-    // STRICT REQUIREMENT: More than 2 players required (minimum 3 players up to 5)
-    if (this.players.length <= 2 || this.players.length > 5) return false;
+    const minRequired = this.isQuickMatch ? 2 : 3;
+    if (this.players.length < minRequired || this.players.length > 5) return false;
     // ALL seated players (including host) must click "I am Ready!" (bots are automatically ready)
-    return this.players.every(p => p.isReady || p.isBot);
+    if (!this.players.every(p => p.isReady || p.isBot)) return false;
+    // Staking table requirement: all human players must have staked their buy-in
+    if (this.isStaking && parseFloat(this.buyInAmount || '0') > 0) {
+      if (!this.players.every(p => p.isBot || this.hasPlayerStaked(p.id))) {
+        return false;
+      }
+    }
+    return true;
   }
 
   public startGame(): boolean {

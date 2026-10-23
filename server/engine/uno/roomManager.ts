@@ -981,6 +981,14 @@ export class RoomManager {
         const target = p.address || p.id;
         const currentBal = serverDb.getUserTokenBalance(target);
         if (currentBal + currentStake < buyInNum) {
+          room.addChatMessage({
+            senderId: 'system',
+            senderName: 'SYSTEM',
+            senderAvatar: '⚠️',
+            text: `Cannot set stake to ${buyInNum} $CRAZY8: ${p.name} has insufficient chips (${currentBal} $CRAZY8). Player can claim free test chips from the Airdrop tab or host can select a lower stake.`,
+            isSystem: true,
+          });
+          this.broadcastRoomState(room);
           return {
             success: false,
             error: `${p.name} has insufficient chips (${currentBal} $CRAZY8). Needs ${buyInNum} chips for this stake.`,
