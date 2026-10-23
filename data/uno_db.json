@@ -201,9 +201,9 @@
       "address": "0xc62601e618142f3c697d92434d0b65df482f8a6a",
       "status": "online",
       "currentRoomCode": null,
-      "lastSeen": 1792773548749,
+      "lastSeen": 1792774504313,
       "createdAt": 1792689601546,
-      "updatedAt": 1792773548749,
+      "updatedAt": 1792774504313,
       "stats": {
         "matchesPlayed": 0,
         "wins": 0,
@@ -305,15 +305,17 @@
       "bio": "Hemi Testnet Card Champion",
       "address": "0x0fea07b7645ac6fff060d8b98a8c992b9c0b1c37",
       "status": "online",
-      "currentRoomCode": null,
-      "lastSeen": 1792755235857,
+      "currentRoomCode": "CLSC",
+      "lastSeen": 1792774524309,
       "createdAt": 1792755135396,
-      "updatedAt": 1792755235857,
+      "updatedAt": 1792774524309,
       "stats": {
-        "matchesPlayed": 0,
+        "matchesPlayed": 1,
         "wins": 0,
-        "cardsPlayed": 0,
-        "totalWinnings": "0"
+        "cardsPlayed": 29,
+        "totalWinnings": "0",
+        "losses": 1,
+        "totalLosses": "0"
       },
       "tokenBalance": 10000,
       "friends": [],
@@ -322,6 +324,43 @@
       "recentOpponents": [],
       "notifications": [],
       "hasClaimedAirdrop": false
+    },
+    "wallet_0xcf1109a5628a29bb113769834f72b7c655755469": {
+      "id": "wallet_0xcf1109a5628a29bb113769834f72b7c655755469",
+      "tag": "0xcf115469#9675",
+      "name": "0xcf11...5469",
+      "avatar": "🦊",
+      "bio": "Ready to play Crazy 8 on Hemi!",
+      "address": "0xcf1109a5628a29bb113769834f72b7c655755469",
+      "status": "online",
+      "currentRoomCode": "CLSC",
+      "lastSeen": 1792774504309,
+      "createdAt": 1792773811657,
+      "updatedAt": 1792774504309,
+      "stats": {
+        "matchesPlayed": 0,
+        "wins": 0,
+        "cardsPlayed": 0,
+        "totalWinnings": "0"
+      },
+      "tokenBalance": 30000,
+      "friends": [],
+      "friendRequestsSent": [],
+      "friendRequestsReceived": [],
+      "recentOpponents": [],
+      "notifications": [
+        {
+          "id": "notif_1792773832253_gs847",
+          "type": "airdrop_claimed",
+          "title": "🎁 Welcome Airdrop Received!",
+          "message": "10,000 $CRAZY8 tokens credited to your Hemi Sepolia wallet.",
+          "txHash": "0x0b45b38dadaa4c1668e1a7b9a299f1936b114cb4bae31eb158810fdd09f4cf39",
+          "amount": "10000",
+          "createdAt": 1792773832253,
+          "read": false
+        }
+      ],
+      "hasClaimedAirdrop": true
     }
   },
   "recentRooms": {
