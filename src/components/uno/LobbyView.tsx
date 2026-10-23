@@ -75,6 +75,7 @@ export interface LobbyViewProps {
   liveStats?: { openTables: number; playersOnline: number; gamesPlayed: number };
   isMusicOn?: boolean;
   onToggleMusic?: () => void;
+  onConfigureStake?: (buyIn: string) => void;
   tokenBalance?: string;
   onOpenAirdrop?: () => void;
   isAirdropEligible?: boolean;
@@ -82,6 +83,15 @@ export interface LobbyViewProps {
 }
 
 const AVATARS = ['🦊', '🦁', '🐸', '🤖', '🐻', '💎', '🐉', '🐱'];
+
+export const LOBBY_STAKE_OPTIONS = [
+  { label: 'Free (0)', value: '0' },
+  { label: '50', value: '50' },
+  { label: '100', value: '100', recommended: true },
+  { label: '250', value: '250' },
+  { label: '500', value: '500' },
+  { label: '1000', value: '1000' },
+];
 
 export const LobbyView: React.FC<LobbyViewProps> = ({
   gameState,
@@ -117,6 +127,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   isMusicOn = true,
   onToggleMusic,
   tokenBalance = '0',
+  onConfigureStake,
   onOpenAirdrop,
   isAirdropEligible = false,
   hasClaimedAirdrop = false,
@@ -275,7 +286,6 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   // ==========================================
   if (gameState && gameState.status === 'lobby') {
     const isWalletConnected = !!wallet.address;
-    const isHost = isWalletConnected && gameState.hostId === myPlayerId;
     const myPlayer = isWalletConnected
       ? gameState.players.find(
           (p) =>
@@ -283,9 +293,11 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             (p.address && wallet.address && p.address.toLowerCase() === wallet.address.toLowerCase())
         )
       : undefined;
+    const isHost = isWalletConnected && (gameState.hostId === myPlayerId || !!myPlayer?.isHost);
     const isSpectator = !myPlayer;
     const playerCount = gameState.players.length;
     const isQuickMatch = !!gameState.isQuickMatch;
+    const hasBots = gameState.players.some((p) => p.isBot);
     const readyPlayersCount = gameState.players.filter((p) => p.isReady || p.isBot).length;
     const allPlayersReady = gameState.players.every((p) => p.isReady || p.isBot);
     // Quick Match allows 2-5 real players (1v1 or multiplayer contest), custom tables require 3-5
@@ -397,7 +409,9 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                   </span>
                 </div>
                 <div className="text-orange-200/80 text-[10px] sm:text-[11px]">
-                  Add bots or wait for players, then click Start Game.
+                  {hasBots
+                    ? 'Bots seated (Casual Free Play). Remove bots to enable staking.'
+                    : 'Configure table pot below, or wait for players to join.'}
                 </div>
               </div>
             </div>
@@ -405,6 +419,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               <button
                 onClick={onAddBot}
                 className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl bg-[#FF4600] hover:bg-[#FF5500] text-white font-bold text-[10px] sm:text-xs transition-all flex items-center gap-1 sm:gap-1.5 shrink-0 shadow-md shadow-[#FF4600]/20 cursor-pointer"
+                title={gameState.isStaking ? 'Adding a bot will deactivate staking' : 'Add Bot'}
               >
                 <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 <span>Add Bot</span>
@@ -489,8 +504,100 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
           </div>
         </div>
 
-        {/* Staking Table / Non-Staking Banner */}
-        {gameState.isStaking && parseFloat(gameState.escrowPot?.buyInAmount || '0') > 0 ? (
+        {/* Pot & Staking Hub: Staking only active if NO bots are in the game */}
+        {hasBots ? (
+          <div className="mt-3 sm:mt-4 p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-slate-900/70 border border-slate-800 text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-lg shrink-0">
+                  🤖
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-slate-200 text-xs sm:text-sm">Non-Staking Casual Lobby</span>
+                    <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 font-mono font-bold border border-amber-500/20">
+                      🤖 Bots Seated • Staking Disabled
+                    </span>
+                  </div>
+                  <div className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5">
+                    Staking and token pots are disabled for matches with AI bots.
+                    {isHost ? ' Remove all bots from the table to enable pot configuration and token staking!' : ' Real players only for token staking.'}
+                  </div>
+                </div>
+              </div>
+              <span className="text-[10px] px-2.5 py-1 rounded-full bg-slate-800/90 text-slate-400 font-mono font-bold self-end sm:self-center border border-slate-700">
+                0 Stake (Free)
+              </span>
+            </div>
+          </div>
+        ) : isHost ? (
+          <div className="mt-3 sm:mt-4 p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-gradient-to-r from-amber-500/10 via-[#0B0F14] to-[#FF4600]/10 border border-amber-500/40 shadow-lg animate-in fade-in">
+            {/* Header: Title + Pot Summary */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-white/[0.06]">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-lg shrink-0 shadow-inner">
+                  🪙
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs sm:text-sm font-black text-white">Table Pot Configuration</span>
+                    <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded bg-[#FF4600]/20 text-[#FF4600] font-mono font-bold border border-[#FF4600]/30">
+                      👑 Host Controls
+                    </span>
+                    <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold">
+                      Real Players Only
+                    </span>
+                  </div>
+                  <div className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5">
+                    Configure stake per player. Held in escrow & 95% paid on-chain to match winner!
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2.5 self-end sm:self-center bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl font-mono text-xs">
+                <span className="text-slate-400 text-[10px] uppercase font-bold">Total Pot:</span>
+                <span className="font-black text-amber-400 text-sm sm:text-base flex items-center gap-1">
+                  <span>{gameState.escrowPot?.amount || (parseFloat(gameState.isStaking && gameState.buyInAmount ? gameState.buyInAmount : '0') * playerCount).toFixed(0)}</span>
+                  <span className="text-[10px] text-amber-300/80">$CRAZY8</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Host Stake Selector Pills */}
+            <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
+              <div className="text-[10px] sm:text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <span>Configure Stake:</span>
+                <span className="text-slate-500 font-normal hidden sm:inline">(chips per player)</span>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {LOBBY_STAKE_OPTIONS.map((opt) => {
+                  const currentBuyIn = gameState.isStaking && parseFloat(gameState.escrowPot?.buyInAmount || gameState.buyInAmount || '0') > 0
+                    ? (gameState.escrowPot?.buyInAmount || gameState.buyInAmount || '0')
+                    : '0';
+                  const isSelected = (opt.value === '0' && currentBuyIn === '0') ||
+                    (opt.value !== '0' && parseFloat(currentBuyIn) === parseFloat(opt.value));
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => onConfigureStake?.(opt.value)}
+                      className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1 active:scale-95 ${
+                        isSelected
+                          ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md shadow-amber-500/25 scale-105 ring-1 ring-white/30'
+                          : 'bg-slate-900/80 hover:bg-slate-800 text-slate-300 border border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      {opt.value !== '0' && <span>🪙</span>}
+                      <span>{opt.label}</span>
+                      {opt.recommended && !isSelected && (
+                        <span className="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 font-sans font-bold">★</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : gameState.isStaking && parseFloat(gameState.escrowPot?.buyInAmount || gameState.buyInAmount || '0') > 0 ? (
           <div className="mt-3 sm:mt-4 p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-gradient-to-r from-amber-500/10 via-[#0B0F14] to-[#FF4600]/10 border border-amber-500/30 shadow-md">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
               <div className="flex items-center gap-2.5 sm:gap-3">
@@ -508,14 +615,14 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                     </span>
                   </div>
                   <div className="text-[10px] sm:text-[11px] text-slate-400">
-                    Each player stakes <strong className="text-amber-300 font-mono">{gameState.escrowPot.buyInAmount} $CRAZY8</strong>. When the match ends, our funded Oracle automatically pays out 95% on-chain to the winner!
+                    Each player stakes <strong className="text-amber-300 font-mono">{gameState.escrowPot?.buyInAmount || gameState.buyInAmount} $CRAZY8</strong>. When the match ends, our funded Oracle automatically pays out 95% on-chain to the winner!
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-3 self-end sm:self-center bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl font-mono text-xs">
                 <span className="text-slate-400 text-[10px] uppercase font-bold">Total Pot:</span>
                 <span className="font-black text-amber-400 text-sm sm:text-base flex items-center gap-1">
-                  <span>{gameState.escrowPot.amount || '0'}</span>
+                  <span>{gameState.escrowPot?.amount || '0'}</span>
                   <span className="text-[10px] text-amber-300/80">$CRAZY8</span>
                 </span>
               </div>
@@ -526,7 +633,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
             <div className="flex items-center gap-2 text-slate-300">
               <span className="text-base">🎮</span>
               <span className="font-bold text-[11px] sm:text-xs">Non-Staking Casual Lobby</span>
-              <span className="text-slate-500 text-[10px] hidden sm:inline">• Free play, no test tokens required</span>
+              <span className="text-slate-500 text-[10px] hidden sm:inline">• Free play (Waiting for host to configure pot)</span>
             </div>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono font-bold">
               0 Stake

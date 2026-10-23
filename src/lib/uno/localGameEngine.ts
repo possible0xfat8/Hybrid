@@ -133,8 +133,10 @@ export function createLocalLobby(
     });
   }
 
-  const buyInVal = options?.buyInAmount || (isQuick ? '100' : '0');
-  const isStaking = parseFloat(buyInVal) > 0;
+  const hasBots = players.some((p) => p.isBot);
+  // RULE: When bot is in the game, staking is strictly non-active!
+  const buyInVal = hasBots ? '0' : (options?.buyInAmount || (isQuick ? '100' : '0'));
+  const isStaking = !hasBots && parseFloat(buyInVal) > 0;
 
   return {
     roomId: `local_room_${cleanCode.toLowerCase()}`,

@@ -1671,7 +1671,18 @@ export default function App() {
         cardCount: 0,
         hand: [],
       };
-      setGameState({ ...gameState, players: [...gameState.players, newBot] });
+      // RULE: When a bot is added, staking is deactivated and pot is set to 0!
+      setGameState({
+        ...gameState,
+        players: [...gameState.players, newBot],
+        isStaking: false,
+        buyInAmount: '0',
+        escrowPot: {
+          amount: '0.000',
+          currency: 'CRAZY8',
+          buyInAmount: '0',
+        },
+      });
       return;
     }
     if (!socket) return;
@@ -1686,6 +1697,48 @@ export default function App() {
     }
     if (!socket) return;
     socket.emit('room:remove_player', { playerId });
+  };
+
+  const handleConfigureStake = (buyIn: string) => {
+    if (!gameState) return;
+    const targetBuyIn = buyIn !== undefined ? buyIn : '100';
+    const isLocal = isLocalModeRef.current;
+    if (isLocal) {
+      const stakeNum = parseFloat(targetBuyIn || '0');
+      const hasBots = gameState.players.some((p) => p.isBot);
+      if (hasBots && stakeNum > 0) {
+        setErrorMessage('Cannot enable staking when bots are seated at the table.');
+        setTimeout(() => setErrorMessage(null), 3000);
+        return;
+      }
+      setGameState({
+        ...gameState,
+        isStaking: stakeNum > 0,
+        buyInAmount: targetBuyIn,
+        escrowPot: {
+          amount: (stakeNum * gameState.players.length).toFixed(0),
+          currency: 'CRAZY8',
+          buyInAmount: targetBuyIn,
+        },
+      });
+      return;
+    }
+
+    const s = socket;
+    if (!s || !s.connected) {
+      setErrorMessage('Network connection lost. Please reconnect to configure table stake.');
+      setTimeout(() => setErrorMessage(null), 3000);
+      return;
+    }
+
+    s.emit('room:configure_stake', { buyIn: targetBuyIn }, (res: any) => {
+      if (!res?.success) {
+        setErrorMessage(res?.error || 'Failed to update table pot');
+        setTimeout(() => setErrorMessage(null), 4000);
+      } else {
+        setErrorMessage(null);
+      }
+    });
   };
 
   const handleStartGame = () => {
@@ -2266,6 +2319,7 @@ export default function App() {
             onToggleReady={handleToggleReady}
             onAddBot={handleAddBot}
             onRemovePlayer={handleRemovePlayer}
+            onConfigureStake={handleConfigureStake}
             onStartGame={handleStartGame}
             onLeaveRoom={handleLeaveRoom}
             liveRooms={liveRooms}

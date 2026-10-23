@@ -312,6 +312,20 @@ export function setupUnoNamespace(unoIo: Namespace, roomManager: RoomManager) {
       if (room && player) room.toggleReady(player.id);
     });
 
+    socket.on('room:configure_stake', ({ buyIn }, callback) => {
+      try {
+        const { room, player } = getPlayerInCurrentRoom();
+        if (!room || !player) {
+          if (typeof callback === 'function') callback({ success: false, error: 'Room or player not found' });
+          return;
+        }
+        const result = roomManager.configureRoomStake(room.roomCode, player.id, String(buyIn));
+        if (typeof callback === 'function') callback(result);
+      } catch (err: any) {
+        if (typeof callback === 'function') callback({ success: false, error: err.message });
+      }
+    });
+
     socket.on('room:add_bot', (callback) => {
       const { room, player } = getPlayerInCurrentRoom();
       if (!room || !player) {
@@ -326,13 +340,30 @@ export function setupUnoNamespace(unoIo: Namespace, roomManager: RoomManager) {
         if (typeof callback === 'function') callback({ success: false, error: 'Only the host can add bots' });
         return;
       }
+      // RULE: When a bot is in the game, staking is strictly non-active!
+      if (room.isStaking) {
+        roomManager.refundAllRoomStakes(room, `Bot added to room #${room.roomCode}. Staking disabled.`);
+        room.isStaking = false;
+        room.buyInAmount = '0';
+        room.addChatMessage({
+          senderId: 'system',
+          senderName: 'SYSTEM',
+          senderAvatar: '🤖',
+          text: 'Bot added to lobby. Staking is deactivated and all player stakes have been refunded.',
+          isSystem: true,
+        });
+      }
       const success = room.addBot();
       if (typeof callback === 'function') callback({ success });
+      roomManager.broadcastRoomState(room);
     });
 
     socket.on('room:remove_player', ({ playerId }) => {
       const { room, player } = getPlayerInCurrentRoom();
-      if (room && player && room.hostId === player.id) room.removePlayer(playerId);
+      if (room && player && room.hostId === player.id) {
+        room.removePlayer(playerId);
+        roomManager.broadcastRoomState(room);
+      }
     });
 
     socket.on('game:start', (callback) => {

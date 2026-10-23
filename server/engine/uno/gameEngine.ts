@@ -356,8 +356,11 @@ export class GameRoom {
       this.hostId = newPlayer.id;
     }
 
-    if (newPlayer.isBot && this.isStaking && parseFloat(this.buyInAmount || '0') > 0) {
-      this.recordStake(newPlayer.id, parseFloat(this.buyInAmount));
+    if (newPlayer.isBot) {
+      // RULE: When a bot is in the game, staking is strictly non-active!
+      this.isStaking = false;
+      this.buyInAmount = '0';
+      this.clearStakes();
     }
 
     this.players.push(newPlayer);

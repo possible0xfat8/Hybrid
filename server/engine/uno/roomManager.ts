@@ -902,37 +902,144 @@ export class RoomManager {
     this.disconnectTimers.set(accountId, timer);
   }
 
+  public refundAllRoomStakes(room: GameRoom, reason?: string): void {
+    for (const [pId, stake] of room.getAllStakes()) {
+      if (stake > 0 && !pId.startsWith('bot_')) {
+        const pl = room.players.find(p => p.id === pId);
+        const target = pl?.address || pId;
+        serverDb.creditUserTokenBalance(target, stake);
+        const newBal = serverDb.getUserTokenBalance(target);
+        const refundReason = reason || `Stake of ${stake} $CRAZY8 refunded for Room #${room.roomCode}.`;
+        if (pl?.address) {
+          this.io.to(`wallet:${pl.address.toLowerCase()}`).emit('token:balance_updated', {
+            address: pl.address,
+            balance: newBal.toString(),
+            credited: stake,
+            reason: refundReason,
+          });
+        }
+        if (pl?.socketId) {
+          this.io.to(pl.socketId).emit('token:balance_updated', {
+            address: pl?.address,
+            balance: newBal.toString(),
+            credited: stake,
+            reason: refundReason,
+          });
+        }
+      }
+    }
+    room.clearStakes();
+  }
+
+  public configureRoomStake(
+    roomCode: string,
+    hostAccountId: string,
+    buyIn: string
+  ): { success: boolean; room?: GameRoom; error?: string } {
+    const room = this.getRoomByCode(roomCode);
+    if (!room) return { success: false, error: 'Room not found' };
+    if (room.status !== 'lobby') return { success: false, error: 'Cannot change stakes while game is in progress' };
+
+    // Verify host
+    const isHost =
+      room.hostId === hostAccountId ||
+      room.players.some(
+        p => p.isHost && (p.id === hostAccountId || (p.address && hostAccountId.toLowerCase().includes(p.address.toLowerCase())))
+      );
+    if (!isHost) {
+      return { success: false, error: 'Only the Table Host can configure the table pot' };
+    }
+
+    const buyInNum = parseFloat(buyIn || '0');
+    const hasBots = room.players.some(p => p.isBot);
+
+    // RULE: When a bot is in the game, staking is strictly non-active!
+    if (hasBots && buyInNum > 0) {
+      return { success: false, error: 'Staking is not allowed when bots are present in the lobby. Remove bots to enable staking.' };
+    }
+
+    if (buyInNum <= 0) {
+      // Deactivate staking
+      this.refundAllRoomStakes(room, `Table Host set Room #${room.roomCode} to Casual Non-Staking.`);
+      room.isStaking = false;
+      room.buyInAmount = '0';
+      room.addChatMessage({
+        senderId: 'system',
+        senderName: 'SYSTEM',
+        senderAvatar: '🎮',
+        text: 'Table Host switched room to Casual Free Play (No Stake).',
+        isSystem: true,
+      });
+      this.broadcastRoomState(room);
+      return { success: true, room };
+    }
+
+    // Check that each seated human player has enough balance
+    for (const p of room.players) {
+      if (!p.isBot) {
+        const currentStake = room.getPlayerStake(p.id);
+        const target = p.address || p.id;
+        const currentBal = serverDb.getUserTokenBalance(target);
+        if (currentBal + currentStake < buyInNum) {
+          return {
+            success: false,
+            error: `${p.name} has insufficient chips (${currentBal} $CRAZY8). Needs ${buyInNum} chips for this stake.`,
+          };
+        }
+      }
+    }
+
+    // Refund previous stakes before charging new stake amount
+    this.refundAllRoomStakes(room, `Updating stake to ${buyInNum} $CRAZY8 in Room #${room.roomCode}.`);
+
+    // Debit each seated human player for the new stake
+    for (const p of room.players) {
+      if (!p.isBot) {
+        const target = p.address || p.id;
+        const debited = serverDb.debitUserTokenBalance(target, buyInNum);
+        if (debited) {
+          room.recordStake(p.id, buyInNum);
+          const newBal = serverDb.getUserTokenBalance(target);
+          if (p.address) {
+            this.io.to(`wallet:${p.address.toLowerCase()}`).emit('token:balance_updated', {
+              address: p.address,
+              balance: newBal.toString(),
+              debited: buyInNum,
+              reason: `Staked ${buyInNum} $CRAZY8 in Room #${room.roomCode}`,
+            });
+          }
+          if (p.socketId) {
+            this.io.to(p.socketId).emit('token:balance_updated', {
+              address: p.address,
+              balance: newBal.toString(),
+              debited: buyInNum,
+              reason: `Staked ${buyInNum} $CRAZY8 in Room #${room.roomCode}`,
+            });
+          }
+        }
+      }
+    }
+
+    room.buyInAmount = buyInNum.toString();
+    room.isStaking = true;
+    room.addChatMessage({
+      senderId: 'system',
+      senderName: 'SYSTEM',
+      senderAvatar: '🪙',
+      text: `Table Host configured table stake to ${buyInNum} $CRAZY8 per player (Pot: ${room.getPotAmount()} $CRAZY8).`,
+      isSystem: true,
+    });
+    this.broadcastRoomState(room);
+    return { success: true, room };
+  }
+
   public destroyRoom(roomId: string): void {
     const room = this.rooms.get(roomId);
     if (!room) return;
 
     // If room is destroyed while still in lobby, refund any active player stakes
     if (room.status === 'lobby') {
-      for (const [pId, stake] of room.getAllStakes()) {
-        if (stake > 0 && !pId.startsWith('bot_')) {
-          const pl = room.players.find(p => p.id === pId);
-          const target = pl?.address || pId;
-          serverDb.creditUserTokenBalance(target, stake);
-          const newBal = serverDb.getUserTokenBalance(target);
-          if (pl?.address) {
-            this.io.to(`wallet:${pl.address.toLowerCase()}`).emit('token:balance_updated', {
-              address: pl.address,
-              balance: newBal.toString(),
-              credited: stake,
-              reason: `Room #${room.roomCode} disbanded. Stake of ${stake} $CRAZY8 refunded.`,
-            });
-          }
-          if (pl?.socketId) {
-            this.io.to(pl.socketId).emit('token:balance_updated', {
-              address: pl?.address,
-              balance: newBal.toString(),
-              credited: stake,
-              reason: `Room #${room.roomCode} disbanded. Stake of ${stake} $CRAZY8 refunded.`,
-            });
-          }
-        }
-      }
-      room.clearStakes();
+      this.refundAllRoomStakes(room, `Room #${room.roomCode} disbanded.`);
     }
 
     this.codeToRoomId.delete(room.roomCode);
