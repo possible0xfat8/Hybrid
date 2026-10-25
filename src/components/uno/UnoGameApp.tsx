@@ -1038,8 +1038,19 @@ export default function App() {
       }
     });
 
-    // Real-time on-chain escrow match settlement confirmation
-    s.on('game:settlement', () => {
+    // Real-time on-chain match settlement confirmation
+    s.on('game:settlement', (data?: { txHash?: string; payout?: string; winnerAddress?: string }) => {
+      if (data?.txHash) {
+        const isMe = data.winnerAddress && walletRef.current.address && data.winnerAddress.toLowerCase() === walletRef.current.address.toLowerCase();
+        if (isMe) {
+          toast.success(`🏆 Pot Disbursed! 95% payout (${data.payout || ''} $CRAZY8) transferred on-chain!`, {
+            action: {
+              label: 'View Tx',
+              onClick: () => window.open(`https://testnet.explorer.hemi.network/tx/${data.txHash}`, '_blank'),
+            },
+          });
+        }
+      }
       if (accountRef.current?.id) fetchNotifications(accountRef.current.id);
       if (walletRef.current.address) refreshTokenBalance(walletRef.current.address);
     });

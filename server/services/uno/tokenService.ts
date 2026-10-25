@@ -20,6 +20,7 @@ const TOKEN_ABI = [
   'function totalSupply() external view returns (uint256)',
   'function balanceOf(address account) external view returns (uint256)',
   'function transfer(address recipient, uint256 amount) external returns (bool)',
+  'function mint(address to, uint256 amount) external',
   'function isEligibleForAirdrop(address account) external view returns (bool)',
   'function hasClaimedAirdrop(address account) external view returns (bool)',
   'function airdropTo(address recipient) external returns (bool)',

@@ -125,7 +125,7 @@ export class RoomManager {
                 nonce: Date.now(),
                 timestamp: Date.now(),
                 signature: settleRes.txHash,
-                contractAddress: getEscrowAddress() || process.env.CRAZY8_TOKEN_ADDRESS || '0x19B111602A60442CCbe947a58a5fd7CB0195324E',
+                contractAddress: process.env.CRAZY8_TOKEN_ADDRESS || '0x19B111602A60442CCbe947a58a5fd7CB0195324E',
                 network: 'Hemi Sepolia (Chain ID 743111)',
               };
               this.broadcastRoomState(room);
@@ -139,6 +139,17 @@ export class RoomManager {
               payout: settleRes.winnerPayout,
               fee: settleRes.boardFee,
             });
+
+            // Notify winner wallet channel
+            if (winner.address) {
+              const currentBal = serverDb.getUserTokenBalance(winner.address);
+              this.io.to(`wallet:${winner.address.toLowerCase()}`).emit('token:balance_updated', {
+                address: winner.address,
+                balance: currentBal.toString(),
+                credited: settleRes.winnerPayout,
+                reason: `On-chain pot payout for Room #${room.roomCode}`,
+              });
+            }
 
             // Store notification in winner's profile
             serverDb.addNotification(winner.id, {

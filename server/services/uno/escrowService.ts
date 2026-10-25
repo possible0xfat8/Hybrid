@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
+import { getTokenAdmin, getTokenAddress } from './tokenService';
 
 let escrowContractReadOnly: ethers.Contract | null = null;
 let escrowContractAdmin: ethers.Contract | null = null;
@@ -34,6 +35,7 @@ const ESCROW_ABI = [
   'function settleGame(bytes32 gameId, address winner) external',
   'function cancelGameAndRefund(bytes32 gameId) external',
   'function getGameDetails(bytes32 gameId) external view returns (uint256 totalPot, uint256 buyInPerPlayer, uint256 playerCount, address winner, bool isSettled, bool isCancelled, uint256 winnerPayout, uint256 feeAmount)',
+  'function games(bytes32 gameId) external view returns (bytes32 gameId, uint256 totalPot, uint256 buyInPerPlayer, address[] players, address winner, bool isSettled, bool isCancelled, uint256 createdAt, uint256 settledAt)',
   'function hasDeposited(bytes32 gameId, address player) external view returns (bool)',
   'function totalGamesSettled() external view returns (uint256)',
   'function totalVolumeDistributed() external view returns (uint256)',
@@ -68,15 +70,26 @@ export function formatGameId(roomCode: string): string {
   return ethers.keccak256(ethers.toUtf8Bytes(`HEMI_CRAZY_8_${cleanCode}`));
 }
 
+/**
+ * Fast, automated on-chain match settlement for Crazy 8 on Hemi Sepolia.
+ * 
+ * Compares against the Chess architecture:
+ * 1. Checks if escrow contract has pre-deposited pot on-chain.
+ * 2. If yes, settles via Escrow.
+ * 3. If no, directly disburses 95% pot reward in $CRAZY8 tokens to winner from Oracle.
+ * 4. Broadcasts tx immediately without blocking for block confirmation (non-blocking).
+ */
 export async function settleMatchOnChain(
   roomCode: string,
-  winnerAddress: string
+  winnerAddress: string,
+  potAmount?: number | string
 ): Promise<{
   success: boolean;
   txHash?: string;
   gameId?: string;
   winner?: string;
   winnerPayout?: string;
+  boardFee?: string;
   error?: string;
 }> {
   try {
@@ -84,31 +97,99 @@ export async function settleMatchOnChain(
       return { success: false, error: 'Invalid or missing winner EVM address' };
     }
 
-    const adminContract = getEscrowAdmin();
-    if (!adminContract) {
-      return { success: false, error: 'Admin wallet or Escrow contract not configured on server' };
-    }
+    const cleanWinner = ethers.getAddress(winnerAddress.trim());
+    const totalPot = typeof potAmount === 'number' ? potAmount : (parseFloat(String(potAmount || '0')) || 0);
+    const winnerPayoutNum = Math.max(1, Math.round(totalPot > 0 ? totalPot * 0.95 : 100));
+    const feeNum = Math.round(totalPot > 0 ? totalPot * 0.05 : 5);
 
     const gameId = formatGameId(roomCode);
-    console.log(`[UNO:ESCROW] Triggering settleGame on-chain for Room: ${roomCode}, Winner: ${winnerAddress}`);
+    const adminContract = getEscrowAdmin();
+    const tokenAdmin = getTokenAdmin();
 
-    const tx = await adminContract.settleGame(gameId, winnerAddress);
-    console.log(`[UNO:ESCROW] Transaction submitted: ${tx.hash}`);
+    if (!adminContract && !tokenAdmin) {
+      return { success: false, error: 'Admin wallet or settlement contracts not configured on server' };
+    }
 
-    const receipt = await tx.wait(1);
-    console.log(`[UNO:ESCROW] ✓ Game settled in block ${receipt.blockNumber}`);
+    // 1. Check if the game has an on-chain pot in the Escrow contract
+    let hasEscrowDeposit = false;
+    if (adminContract) {
+      try {
+        const game = await adminContract.games(gameId);
+        if (game && game.totalPot > BigInt(0) && !game.isSettled && !game.isCancelled) {
+          hasEscrowDeposit = true;
+        }
+      } catch {
+        // Fall back to direct token disbursement
+      }
+    }
+
+    let tx: any = null;
+
+    if (hasEscrowDeposit && adminContract) {
+      console.log(`[UNO:ESCROW] Settling via Escrow for Room: ${roomCode}, Winner: ${cleanWinner}`);
+      tx = await adminContract.settleGame(gameId, cleanWinner, {
+        gasLimit: 300000,
+        gasPrice: ethers.parseUnits('0.1', 'gwei'),
+      });
+    } else if (tokenAdmin) {
+      // 2. Automated Direct Pot Disbursement via Token Contract (matching Chess architecture)
+      console.log(`[UNO:POT] Automatically disbursing ${winnerPayoutNum} $CRAZY8 to winner ${cleanWinner}...`);
+      const amountWei = ethers.parseEther(String(winnerPayoutNum));
+
+      try {
+        const adminAddr = await tokenAdmin.runner?.getAddress?.();
+        let adminBal = BigInt(0);
+        if (adminAddr) {
+          adminBal = await tokenAdmin.balanceOf(adminAddr);
+        }
+
+        if (adminBal >= amountWei) {
+          tx = await tokenAdmin.transfer(cleanWinner, amountWei, {
+            gasLimit: 100000,
+            gasPrice: ethers.parseUnits('0.1', 'gwei'),
+          });
+        } else {
+          // If admin token balance is insufficient, mint directly to the winner
+          tx = await tokenAdmin.mint(cleanWinner, amountWei, {
+            gasLimit: 100000,
+            gasPrice: ethers.parseUnits('0.1', 'gwei'),
+          });
+        }
+      } catch (tokenErr: any) {
+        console.warn(`[UNO:POT] Transfer attempt failed, trying mint:`, tokenErr.message);
+        tx = await tokenAdmin.mint(cleanWinner, amountWei, {
+          gasLimit: 100000,
+          gasPrice: ethers.parseUnits('0.1', 'gwei'),
+        });
+      }
+    } else {
+      return { success: false, error: 'No settlement contract available' };
+    }
+
+    console.log(`[UNO:DISBURSE] On-chain transaction broadcasted ASAP: ${tx.hash}`);
+
+    // Asynchronous background wait - DO NOT block the client or socket response!
+    tx.wait(1)
+      .then((receipt: any) => {
+        console.log(`[UNO:DISBURSE] ✓ Confirmed on-chain in block ${receipt?.blockNumber || 'confirmed'}`);
+      })
+      .catch((err: any) => {
+        console.warn(`[UNO:DISBURSE] Background confirmation note:`, err.message);
+      });
 
     return {
       success: true,
       txHash: tx.hash,
       gameId,
-      winner: winnerAddress,
+      winner: cleanWinner,
+      winnerPayout: String(winnerPayoutNum),
+      boardFee: String(feeNum),
     };
   } catch (err: any) {
     console.error(`[UNO:ESCROW] Settlement error for room ${roomCode}:`, err);
     return {
       success: false,
-      error: err.reason || err.message || 'Error executing settlement',
+      error: err.reason || err.shortMessage || err.message || 'Error executing settlement',
     };
   }
 }

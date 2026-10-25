@@ -206,7 +206,7 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
                       <span>95% Pot Transferred</span>
                     </span>
                     <a
-                      href={`https://testnet.explorer.hemi.xyz/tx/${signature.signature}`}
+                      href={`https://testnet.explorer.hemi.network/tx/${signature.signature}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-[#FF4600] hover:text-[#FF6622] flex items-center gap-1 font-mono font-medium"
@@ -232,7 +232,7 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
             {isMe && (
               signature?.signature && signature.signature.length === 66 ? (
                 <a
-                  href={`https://testnet.explorer.hemi.xyz/tx/${signature.signature}`}
+                  href={`https://testnet.explorer.hemi.network/tx/${signature.signature}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full sm:w-auto px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm tracking-wide bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/30 flex items-center justify-center gap-1.5 transition-all shadow-sm"
