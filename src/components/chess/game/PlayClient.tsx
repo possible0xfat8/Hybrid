@@ -14,6 +14,7 @@ import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import { useAccount } from 'wagmi';
 import { Navbar } from '@/components/chess/Navbar';
+import { ConnectWallet } from '@/components/chess/ConnectWallet';
 import { PlayerCard, GamePanel } from '@/components/chess/game/GamePanels';
 import {
   SearchingCard,
@@ -85,16 +86,20 @@ export function PlayClient() {
     };
   }, [gameState]);
 
-  // Clean up BGM on unmount
+  // Clean up legacy guest ID and BGM on unmount
   useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('hemichess_player_id');
+      }
+    } catch {}
     return () => {
       chessMusic.stopMusic();
     };
   }, []);
   
   // Use wallet address as player ID when connected
-  const playerId = isConnected && address ? address.toLowerCase() : 
-    (typeof window !== 'undefined' ? localStorage.getItem('hemichess_player_id') || `player_${Date.now()}` : `player_${Date.now()}`);
+  const playerId = isConnected && address ? address.toLowerCase() : '';
   
   // Chess game state
   const [game, setGame] = useState<Chess>(new Chess());
@@ -180,6 +185,10 @@ export function PlayClient() {
     
     const pendingGameData = sessionStorage.getItem('pendingGame');
     if (pendingGameData) {
+      if (!isConnected || !address) {
+        sessionStorage.removeItem('pendingGame');
+        return;
+      }
       try {
         const gameData = JSON.parse(pendingGameData);
         console.log('[PENDING_GAME] Found pending game in sessionStorage:', gameData);
@@ -230,6 +239,14 @@ export function PlayClient() {
       });
     }
   }, [socket?.connected, isConnected, address, gameId, gameState]); // Join when socket/wallet/game becomes ready
+
+  // Handle mid-game wallet disconnection
+  useEffect(() => {
+    if (!isConnected && gameState !== 'menu') {
+      setGameState('menu');
+      toast.info('Wallet disconnected. Returned to lobby.');
+    }
+  }, [isConnected, gameState]);
 
   useEffect(() => {
     if (!socket) return;
@@ -653,7 +670,7 @@ export function PlayClient() {
 
   const handleFindMatch = () => {
     if (!isConnected || !address) {
-      startLocalBotGame('white');
+      toast.error('Please connect your Web3 wallet to play Chess');
       return;
     }
 
@@ -1088,13 +1105,9 @@ export function PlayClient() {
                       Jump in with your Web3 wallet to record on-chain ratings and compete for glory.
                     </p>
 
-                    <button
-                      onClick={() => startLocalBotGame('white')}
-                      className="mt-5 w-full rounded-xl bg-orange hover:bg-orange-strong text-canvas px-6 py-3.5 font-bold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
-                    >
-                      <Bot className="w-4 h-4" />
-                      <span>Play vs Computer (Bot Practice)</span>
-                    </button>
+                    <div className="mt-5 flex justify-center">
+                      <ConnectWallet />
+                    </div>
                     <div className="surface-inset mt-6 space-y-2 p-4 text-left">
                       <div className="flex justify-between text-sm">
                         <span className="text-ink-faint">Network</span>

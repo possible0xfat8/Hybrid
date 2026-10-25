@@ -153,8 +153,8 @@ export function createLocalConnect4Room(
     .fill(null)
     .map(() => Array(COLS).fill(0));
 
-  const myAddr = userAddress || `0xGuest_${Math.random().toString(36).substring(2, 6)}`;
-  const myName = displayName || (userAddress ? `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}` : 'Hemi Challenger');
+  const myAddr = userAddress || '';
+  const myName = displayName || (userAddress ? `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}` : 'Challenger');
 
   return {
     roomCode: `BOT-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,

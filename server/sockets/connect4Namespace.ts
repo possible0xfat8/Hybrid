@@ -320,7 +320,15 @@ export function initConnect4Namespace(io: Server) {
 
     // 1. Join matchmaking / Quick Match (Temporary server 1v1 matching)
     socket.on('join_matchmaking', async (data: { address: string; displayName?: string; avatar?: string }) => {
-      const address = data.address || `0x${socket.id.slice(0, 8)}`;
+      const cleanAddress = data?.address && typeof data.address === 'string' && data.address.trim().startsWith('0x') && data.address.trim().length >= 10
+        ? data.address.trim().toLowerCase()
+        : null;
+
+      if (!cleanAddress) {
+        socket.emit('error_message', { message: 'Web3 Wallet connection required to play Connect 4.' });
+        return;
+      }
+      const address = cleanAddress;
       const stats = await getConnect4PlayerStats(address);
       const displayName = data.displayName || `${address.slice(0, 6)}...${address.slice(-4)}`;
       const avatar = data.avatar || '🦊';
@@ -442,7 +450,15 @@ export function initConnect4Namespace(io: Server) {
 
     // 2. Play vs Bot (Instant solo match)
     socket.on('play_vs_bot', async (data: { address: string; displayName?: string; avatar?: string }) => {
-      const address = data.address || `0x${socket.id.slice(0, 8)}`;
+      const cleanAddress = data?.address && typeof data.address === 'string' && data.address.trim().startsWith('0x') && data.address.trim().length >= 10
+        ? data.address.trim().toLowerCase()
+        : null;
+
+      if (!cleanAddress) {
+        socket.emit('error_message', { message: 'Web3 Wallet connection required to play Connect 4.' });
+        return;
+      }
+      const address = cleanAddress;
       const stats = await getConnect4PlayerStats(address);
       const displayName = data.displayName || `${address.slice(0, 6)}...${address.slice(-4)}`;
       const avatar = data.avatar || '🦊';
@@ -490,7 +506,15 @@ export function initConnect4Namespace(io: Server) {
 
     // 2b. Create Private Room
     socket.on('create_room', async (data: { address: string; displayName?: string; avatar?: string }) => {
-      const address = data.address || `0x${socket.id.slice(0, 8)}`;
+      const cleanAddress = data?.address && typeof data.address === 'string' && data.address.trim().startsWith('0x') && data.address.trim().length >= 10
+        ? data.address.trim().toLowerCase()
+        : null;
+
+      if (!cleanAddress) {
+        socket.emit('error_message', { message: 'Web3 Wallet connection required to create a Connect 4 room.' });
+        return;
+      }
+      const address = cleanAddress;
       const stats = await getConnect4PlayerStats(address);
       const displayName = data.displayName || `${address.slice(0, 6)}...${address.slice(-4)}`;
       const avatar = data.avatar || '🦊';
@@ -527,6 +551,15 @@ export function initConnect4Namespace(io: Server) {
 
     // 2c. Join Private Room
     socket.on('join_room', async (data: { roomCode: string; address: string; displayName?: string; avatar?: string }) => {
+      const cleanAddress = data?.address && typeof data.address === 'string' && data.address.trim().startsWith('0x') && data.address.trim().length >= 10
+        ? data.address.trim().toLowerCase()
+        : null;
+
+      if (!cleanAddress) {
+        socket.emit('error_message', { message: 'Web3 Wallet connection required to join a Connect 4 room.' });
+        return;
+      }
+
       const room = rooms.get(data.roomCode.trim().toUpperCase());
       if (!room) {
         socket.emit('error_message', { message: 'Room not found! Check the room code.' });
@@ -538,7 +571,7 @@ export function initConnect4Namespace(io: Server) {
         return;
       }
 
-      const address = data.address || `0x${socket.id.slice(0, 8)}`;
+      const address = cleanAddress;
       const stats = await getConnect4PlayerStats(address);
       const displayName = data.displayName || `${address.slice(0, 6)}...${address.slice(-4)}`;
       const avatar = data.avatar || '⚡';

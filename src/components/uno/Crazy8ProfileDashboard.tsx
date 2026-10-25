@@ -139,7 +139,7 @@ export const Crazy8ProfileDashboard: React.FC<Crazy8ProfileDashboardProps> = ({
               {!isEditingName ? (
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="text-base sm:text-lg font-black text-white truncate max-w-[150px] sm:max-w-[200px]">
-                    {isConnected ? account?.name : 'Guest Player'}
+                    {isConnected ? account?.name : 'Disconnected'}
                   </span>
                   {isConnected && (
                     <button

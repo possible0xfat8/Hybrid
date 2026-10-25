@@ -17,7 +17,6 @@ export interface ConnectWalletModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectWallet: (wallet: DiscoveredWallet) => Promise<void>;
-  onSelectGuestWallet?: () => void;
   connectingWalletId: string | null;
   error: string | null;
   onClearError?: () => void;
@@ -27,7 +26,6 @@ export const ConnectWalletModal: React.FC<ConnectWalletModalProps> = ({
   isOpen,
   onClose,
   onSelectWallet,
-  onSelectGuestWallet,
   connectingWalletId,
   error,
   onClearError,
@@ -93,40 +91,6 @@ export const ConnectWalletModal: React.FC<ConnectWalletModalProps> = ({
           </div>
         )}
 
-        {/* Instant Arcade Play Option */}
-        {onSelectGuestWallet && (
-          <div className="mb-3.5 p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-[#FF4600]/15 to-orange-500/10 border border-[#FF4600]/30 shadow-lg shrink-0">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#FF4600] to-amber-500 flex items-center justify-center text-white text-base font-bold shadow-md shrink-0">
-                  ⚡
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs sm:text-sm font-black text-white flex items-center gap-1.5">
-                    <span>Instant Play (Arcade Mode)</span>
-                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold">
-                      FREE
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-slate-300 truncate">
-                    No wallet extension required • 10,000 $CRAZY8 chips
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  onSelectGuestWallet();
-                  onClose();
-                }}
-                className="px-3 sm:px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#FF5500] to-[#FF3700] hover:brightness-110 active:scale-95 text-white font-black text-xs transition-all shadow-md shrink-0 cursor-pointer flex items-center gap-1"
-              >
-                <span>Play Now</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Wallets Scroll Container */}
         <div className="overflow-y-auto custom-scrollbar flex-1 pr-1 space-y-3 sm:space-y-4">

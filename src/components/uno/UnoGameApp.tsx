@@ -28,6 +28,7 @@ import { WalletConnectButton } from './WalletConnectButton';
 import { ProfileModal } from './ProfileModal';
 import { FriendsModal } from './FriendsModal';
 import { GameInviteToast } from './GameInviteToast';
+import { toast } from 'sonner';
 import { HemiUnoLogo } from './HemiUnoLogo';
 import { LeaderboardModal } from './LeaderboardModal';
 import { CreateTableModal } from './CreateTableModal';
@@ -50,7 +51,7 @@ import {
   DiscoveredWallet,
   connectWalletProvider,
   clearActiveProvider,
-  createGuestArcadeWallet,
+  clearLegacyGuestWallet,
 } from '@/lib/uno/wallet';
 import {
   getOrCreateAccountProfile,
@@ -615,6 +616,7 @@ export default function App() {
 
   // Check initial connected wallet and listen to account/chain events
   useEffect(() => {
+    clearLegacyGuestWallet();
     const provider = getInjectedProvider();
     if (!provider || !provider.request) return;
 
@@ -774,28 +776,6 @@ export default function App() {
     } finally {
       setConnectingWalletId(null);
     }
-  };
-
-  const handleSelectGuestWallet = () => {
-    const guest = createGuestArcadeWallet();
-    const cleanAddr = guest.address.toLowerCase();
-    const profile = getOrCreateAccountProfile(cleanAddr);
-    if (profile) {
-      setAccount(profile);
-    }
-    saveLastConnectedWallet(cleanAddr);
-
-    setWallet({
-      address: guest.address,
-      chainId: guest.chainId,
-      balance: guest.balance,
-      isConnecting: false,
-      error: null,
-      walletName: 'Arcade Guest',
-    });
-    setTokenBalance('10000');
-    soundEngine.play('card_deal');
-    setIsWalletModalOpen(false);
   };
 
   const handleDisconnectWallet = () => {
@@ -1421,24 +1401,9 @@ export default function App() {
     let activeAccount = account;
 
     if (!activeAddress || !activeAddress.startsWith('0x') || !activeAccount) {
-      const guest = createGuestArcadeWallet();
-      const cleanAddr = guest.address.toLowerCase();
-      const profile = getOrCreateAccountProfile(cleanAddr);
-      if (profile) {
-        setAccount(profile);
-        activeAccount = profile;
-      }
-      saveLastConnectedWallet(cleanAddr);
-      setWallet({
-        address: guest.address,
-        chainId: guest.chainId,
-        balance: guest.balance,
-        isConnecting: false,
-        error: null,
-        walletName: 'Arcade Guest',
-      });
-      setTokenBalance('10000');
-      activeAddress = guest.address;
+      setIsWalletModalOpen(true);
+      toast.error('Please connect your wallet to create a table');
+      return;
     }
 
     if (!activeAddress || !activeAccount) return;
@@ -1481,24 +1446,9 @@ export default function App() {
     let activeAccount = account;
 
     if (!activeAddress || !activeAddress.startsWith('0x') || !activeAccount) {
-      const guest = createGuestArcadeWallet();
-      const cleanAddr = guest.address.toLowerCase();
-      const profile = getOrCreateAccountProfile(cleanAddr);
-      if (profile) {
-        setAccount(profile);
-        activeAccount = profile;
-      }
-      saveLastConnectedWallet(cleanAddr);
-      setWallet({
-        address: guest.address,
-        chainId: guest.chainId,
-        balance: guest.balance,
-        isConnecting: false,
-        error: null,
-        walletName: 'Arcade Guest',
-      });
-      setTokenBalance('10000');
-      activeAddress = guest.address;
+      setIsWalletModalOpen(true);
+      toast.error('Please connect your wallet to join a table');
+      return;
     }
 
     if (!activeAddress || !activeAccount) return;
@@ -1575,24 +1525,9 @@ export default function App() {
     let activeAccount = account;
 
     if (!activeAddress || !activeAddress.startsWith('0x') || !activeAccount) {
-      const guest = createGuestArcadeWallet();
-      const cleanAddr = guest.address.toLowerCase();
-      const profile = getOrCreateAccountProfile(cleanAddr);
-      if (profile) {
-        setAccount(profile);
-        activeAccount = profile;
-      }
-      saveLastConnectedWallet(cleanAddr);
-      setWallet({
-        address: guest.address,
-        chainId: guest.chainId,
-        balance: guest.balance,
-        isConnecting: false,
-        error: null,
-        walletName: 'Arcade Guest',
-      });
-      setTokenBalance('10000');
-      activeAddress = guest.address;
+      setIsWalletModalOpen(true);
+      toast.error('Please connect your wallet to play Crazy 8');
+      return;
     }
 
     if (!activeAddress || !activeAccount) return;
@@ -3246,7 +3181,6 @@ export default function App() {
           setWalletModalError(null);
         }}
         onSelectWallet={handleSelectWallet}
-        onSelectGuestWallet={handleSelectGuestWallet}
         connectingWalletId={connectingWalletId}
         error={walletModalError}
         onClearError={() => setWalletModalError(null)}

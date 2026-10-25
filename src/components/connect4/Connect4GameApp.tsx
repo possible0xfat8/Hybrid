@@ -15,6 +15,7 @@ import {
 } from '@/lib/connect4/localConnect4Engine';
 import { WalletConnect } from '@/components/shared/WalletConnect';
 import { UserProfileModal, UserProfileTarget } from '@/components/shared/UserProfileModal';
+import { toast } from 'sonner';
 import {
   Trophy,
   Zap,
@@ -170,6 +171,15 @@ export default function Connect4GameApp() {
     };
   }, []);
 
+  // Handle mid-game wallet disconnection
+  useEffect(() => {
+    if (!isConnected && roomState) {
+      setRoomState(null);
+      setMatchmakingSearching(false);
+      toast.info('Wallet disconnected. Returned to lobby.');
+    }
+  }, [isConnected, roomState]);
+
   // Determine current player's number (1 or 2)
   const myPlayerNumber: 1 | 2 | null = useMemo(() => {
     if (!roomState) return null;
@@ -291,6 +301,11 @@ export default function Connect4GameApp() {
     c4Audio.playClick();
     isLocalMatchRef.current = false;
 
+    if (!isConnected || !userAddress) {
+      toast.error('Please connect your Web3 wallet to play Connect 4');
+      return;
+    }
+
     if (!socket || !socket.connected) {
       setErrorMessage('Connecting to Connect 4 game server... Please try again in a moment.');
       return;
@@ -298,8 +313,8 @@ export default function Connect4GameApp() {
 
     setMatchmakingSearching(true);
     socket.emit('join_matchmaking', {
-      address: userAddress || `0xGuest_${Math.random().toString(36).substring(2, 6)}`,
-      displayName: userAddress ? `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}` : 'Hemi Challenger',
+      address: userAddress,
+      displayName: `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`,
       avatar: '🦊',
     });
   };
@@ -318,6 +333,12 @@ export default function Connect4GameApp() {
 
   const handlePlayBot = () => {
     c4Audio.playClick();
+
+    if (!isConnected || !userAddress) {
+      toast.error('Please connect your Web3 wallet to play Connect 4');
+      return;
+    }
+
     const launchLocal = () => {
       isLocalMatchRef.current = true;
       const localRoom = createLocalConnect4Room(userAddress, undefined, '🦊', 'Hemi Bot ⚡', '🤖');
@@ -336,8 +357,8 @@ export default function Connect4GameApp() {
       }, 1200);
 
       socket.emit('play_vs_bot', {
-        address: userAddress || `0xGuest_${Math.random().toString(36).substring(2, 6)}`,
-        displayName: userAddress ? `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}` : 'Hemi Challenger',
+        address: userAddress,
+        displayName: `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`,
         avatar: '🦊',
       });
     } else {
@@ -346,14 +367,18 @@ export default function Connect4GameApp() {
   };
 
   const handleCreatePrivateRoom = () => {
+    if (!isConnected || !userAddress) {
+      toast.error('Please connect your Web3 wallet to create a room');
+      return;
+    }
     if (!socket || !socket.connected) {
       handlePlayBot();
       return;
     }
     c4Audio.playClick();
     socket.emit('create_room', {
-      address: userAddress || `0xGuest_${Math.random().toString(36).substring(2, 6)}`,
-      displayName: userAddress ? `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}` : 'Hemi Challenger',
+      address: userAddress,
+      displayName: `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`,
       avatar: '🦊',
     });
   };
@@ -361,6 +386,10 @@ export default function Connect4GameApp() {
   const handleJoinPrivateRoom = (e: React.FormEvent) => {
     e.preventDefault();
     if (!joinCodeInput.trim()) return;
+    if (!isConnected || !userAddress) {
+      toast.error('Please connect your Web3 wallet to join a room');
+      return;
+    }
     if (!socket || !socket.connected) {
       handlePlayBot();
       return;
@@ -368,8 +397,8 @@ export default function Connect4GameApp() {
     c4Audio.playClick();
     socket.emit('join_room', {
       roomCode: joinCodeInput.trim(),
-      address: userAddress || `0xGuest_${Math.random().toString(36).substring(2, 6)}`,
-      displayName: userAddress ? `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}` : 'Hemi Challenger',
+      address: userAddress,
+      displayName: `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`,
       avatar: '⚡',
     });
   };
@@ -680,10 +709,10 @@ export default function Connect4GameApp() {
                         </div>
                         <div>
                           <div className="text-xs font-bold text-white">
-                            {userAddress ? `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}` : 'Guest Pilot'}
+                            {userAddress ? `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}` : 'Wallet Disconnected'}
                           </div>
                           <div className="text-[10px] font-mono text-slate-400">
-                            {isConnected ? 'Wallet Connected' : 'Guest Mode (Connect for ELO)'}
+                            {isConnected ? 'Wallet Connected' : 'Connect Wallet to Play'}
                           </div>
                         </div>
                       </div>
@@ -721,6 +750,24 @@ export default function Connect4GameApp() {
             {/* Mode Selector & Action Launchpads */}
             {(!roomState || roomState.status !== 'waiting') && (
               <div className="space-y-4">
+                {/* Connect Wallet Required Banner */}
+                {!isConnected && (
+                  <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#FF4600]/15 via-black/40 to-[#FF4600]/10 border border-[#FF4600]/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-[#FF4600]/20 border border-[#FF4600]/40 flex items-center justify-center text-[#FF4600] shrink-0">
+                        <Shield className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-white">Web3 Wallet Required</div>
+                        <div className="text-xs text-slate-400">Connect your Web3 wallet to play Connect 4, climb the on-chain leaderboard, and challenge opponents.</div>
+                      </div>
+                    </div>
+                    <div className="shrink-0">
+                      <WalletConnect />
+                    </div>
+                  </div>
+                )}
+
                 {/* Tabs */}
                 <div className="flex items-center gap-1.5 sm:gap-2 border-b border-white/10 pb-2 overflow-x-auto scrollbar-none">
                   <button

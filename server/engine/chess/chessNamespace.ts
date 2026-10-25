@@ -43,7 +43,16 @@ export function setupChessNamespace(chessIo: Namespace, engine: ChessEngine) {
     });
 
     socket.on('find_match', (playerData) => {
-      engine.queuePlayer(socket, playerData);
+      const cleanAddress = playerData?.walletAddress && typeof playerData.walletAddress === 'string' && playerData.walletAddress.trim().startsWith('0x') && playerData.walletAddress.trim().length >= 10
+        ? playerData.walletAddress.trim().toLowerCase()
+        : null;
+
+      if (!cleanAddress) {
+        socket.emit('match_error', { message: 'Web3 Wallet connection required to find a match.' });
+        return;
+      }
+
+      engine.queuePlayer(socket, { ...playerData, walletAddress: cleanAddress });
     });
 
     socket.on('cancel_matchmaking', () => {

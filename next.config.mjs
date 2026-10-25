@@ -36,7 +36,7 @@ const nextConfig = {
     return config;
   },
   async rewrites() {
-    const backendUrl = process.env.NEXT_PUBLIC_SOCKET_URL?.trim();
+    const backendUrl = (process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL)?.trim();
     if (
       backendUrl &&
       backendUrl.startsWith('http') &&
