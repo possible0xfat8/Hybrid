@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import { Navbar } from '@/components/chess/Navbar';
-import { Footer } from '@/components/chess/Footer';
-import { Leaderboard } from '@/components/chess/Leaderboard';
+import { Navbar } from '../../../../components/chess/Navbar';
+import { Footer } from '../../../../components/chess/Footer';
+import { Leaderboard } from '../../../../components/chess/Leaderboard';
 
 export default function ChessLeaderboardPage() {
   return (

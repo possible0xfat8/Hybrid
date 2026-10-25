@@ -3,8 +3,8 @@ import { useAccount } from 'wagmi';
 import { getBackendUrl } from '@/lib/config';
 import { Users, Swords, UserMinus, Search, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { Avatar } from '@/components/Avatar';
-import { ClickableUsername } from '@/components/ClickableUsername';
+import { Avatar } from './Avatar';
+import { ClickableUsername } from './ClickableUsername';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { toast } from 'sonner';
 

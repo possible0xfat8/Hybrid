@@ -7,7 +7,7 @@
     "dev": "tsx server/index.ts",
     "dev:next": "next dev -p 3000 -H 0.0.0.0",
     "dev:server": "tsx server/index.ts",
-    "build": "next build",
+    "build": "node scripts/build.js",
     "build:server": "echo 'Backend build ready'",
     "start": "tsx server/index.ts",
     "start:server": "tsx server/index.ts",

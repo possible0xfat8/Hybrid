@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import { Navbar } from '@/components/chess/Navbar';
-import { Footer } from '@/components/chess/Footer';
-import { FriendsList } from '@/components/chess/FriendsList';
+import { Navbar } from '../../../../components/chess/Navbar';
+import { Footer } from '../../../../components/chess/Footer';
+import { FriendsList } from '../../../../components/chess/FriendsList';
 
 export default function ChessFriendsPage() {
   return (
