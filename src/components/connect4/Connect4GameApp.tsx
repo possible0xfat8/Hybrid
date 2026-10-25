@@ -147,6 +147,16 @@ export default function Connect4GameApp() {
       setErrorMessage(data.message);
       setTimeout(() => setErrorMessage(null), 4000);
     }
+    function onSettlement(data: { txHash: string; winnerAddress: string; winDelta?: number }) {
+      if (data?.txHash) {
+        toast.success(`⚡ On-Chain ELO Settled! +${data.winDelta || 16} ELO recorded on Hemi Sepolia!`, {
+          action: {
+            label: 'View Tx',
+            onClick: () => window.open(`https://testnet.explorer.hemi.network/tx/${data.txHash}`, '_blank'),
+          },
+        });
+      }
+    }
 
     s.on('connect', onConnect);
     s.on('disconnect', onDisconnect);
@@ -155,6 +165,7 @@ export default function Connect4GameApp() {
     s.on('matchmaking_cancelled', onMatchmakingCancelled);
     s.on('chat_message', onChatMessage);
     s.on('error_message', onErrorMsg);
+    s.on('c4_settlement', onSettlement);
 
     if (s.connected) {
       setSocketConnected(true);
@@ -168,6 +179,7 @@ export default function Connect4GameApp() {
       s.off('matchmaking_cancelled', onMatchmakingCancelled);
       s.off('chat_message', onChatMessage);
       s.off('error_message', onErrorMsg);
+      s.off('c4_settlement', onSettlement);
     };
   }, []);
 

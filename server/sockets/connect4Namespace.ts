@@ -244,11 +244,11 @@ export function initConnect4Namespace(io: Server) {
     const p1 = room.players.find((p) => p.playerNumber === 1);
     const p2 = room.players.find((p) => p.playerNumber === 2);
 
-    if (winner !== 'draw' && p1 && p2 && !p1.isBot && !p2.isBot) {
+    if (winner !== 'draw' && p1 && p2) {
       const winnerPlayer = winner === 1 ? p1 : p2;
       const loserPlayer = winner === 1 ? p2 : p1;
 
-      const deltas = calculateConnect4EloDelta(winnerPlayer.elo, loserPlayer.elo);
+      const deltas = calculateConnect4EloDelta(winnerPlayer.elo || 1200, loserPlayer.elo || 1200);
       room.eloChanges = {
         winnerAddress: winnerPlayer.address,
         loserAddress: loserPlayer.address,
@@ -256,19 +256,27 @@ export function initConnect4Namespace(io: Server) {
         loseDelta: deltas.loseDelta,
       };
 
-      // Trigger On-Chain Settlement asynchronously
-      settleConnect4MatchOnChain({
-        gameId: room.gameId,
-        winnerAddress: winnerPlayer.address,
-        loserAddress: loserPlayer.address,
-        winDelta: deltas.winDelta,
-        loseDelta: deltas.loseDelta,
-      }).then((res) => {
-        if (res.success && res.txHash) {
-          room.settlementTxHash = res.txHash;
-          broadcastRoomState(room);
-        }
-      });
+      if (!winnerPlayer.isBot && winnerPlayer.address && winnerPlayer.address.startsWith('0x')) {
+        // Trigger On-Chain Settlement asynchronously matching Hemi Chess
+        settleConnect4MatchOnChain({
+          gameId: room.gameId,
+          winnerAddress: winnerPlayer.address,
+          loserAddress: loserPlayer.isBot ? undefined : loserPlayer.address,
+          winDelta: deltas.winDelta,
+          loseDelta: deltas.loseDelta,
+        }).then((res) => {
+          if (res.success && res.txHash) {
+            room.settlementTxHash = res.txHash;
+            broadcastRoomState(room);
+            c4Namespace.to(room.roomCode).emit('c4_settlement', {
+              gameId: room.gameId,
+              winnerAddress: winnerPlayer.address,
+              txHash: res.txHash,
+              winDelta: deltas.winDelta,
+            });
+          }
+        });
+      }
     }
 
     broadcastRoomState(room);

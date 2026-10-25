@@ -22,7 +22,10 @@ const publicClient = createPublicClient({
 });
 
 function getWalletClient() {
-  const privateKey = (process.env.BACKEND_PRIVATE_KEY || DEFAULT_BACKEND_KEY) as `0x${string}`;
+  const envKey = (process.env.ADMIN_PRIVATE_KEY || process.env.BACKEND_PRIVATE_KEY)?.trim();
+  const privateKey = (envKey && envKey.startsWith('0x') && envKey.length === 66
+    ? envKey
+    : DEFAULT_BACKEND_KEY) as `0x${string}`;
   const account = privateKeyToAccount(privateKey);
   return createWalletClient({
     account,
@@ -108,44 +111,101 @@ export function calculateConnect4EloDelta(winnerElo: number, loserElo: number): 
   return { winDelta, loseDelta };
 }
 
+/**
+ * Direct soulbound ELO adjustment matching the exact Hemi Chess adjustElo method
+ */
+export async function adjustConnect4EloOnChain(
+  playerAddress: string,
+  amount: bigint,
+  isWin: boolean
+): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  try {
+    if (!isAddress(playerAddress)) {
+      return { success: false, error: 'Invalid player address' };
+    }
+    const walletClient = getWalletClient();
+    const hash = await walletClient.writeContract({
+      address: CONTRACT_ADDRESS,
+      abi: connect4Abi,
+      functionName: 'adjustElo',
+      args: [playerAddress as `0x${string}`, amount, isWin],
+    });
+    console.log(`[Connect4Settlement] adjustElo tx sent: ${hash} for ${playerAddress}`);
+    return { success: true, txHash: hash };
+  } catch (err: any) {
+    console.error(`[Connect4Settlement] adjustElo failed for ${playerAddress}:`, err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * On-chain match settlement for Connect 4 on Hemi Sepolia.
+ * Matches Hemi Chess methodology:
+ * 1. Checks valid EVM address and calculates ELO delta.
+ * 2. If human 1v1 duel, attempts recordMatch on-chain.
+ * 3. If recordMatch fails or duel is vs Bot, falls back to direct adjustElo disbursement (Chess pattern).
+ * 4. Broadcasts transaction immediately without blocking for block confirmation.
+ */
 export async function settleConnect4MatchOnChain(params: {
   gameId: string;
   winnerAddress: string;
-  loserAddress: string;
+  loserAddress?: string;
   winDelta?: number;
   loseDelta?: number;
 }): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
     const { gameId, winnerAddress, loserAddress } = params;
 
-    if (!isAddress(winnerAddress) || !isAddress(loserAddress)) {
-      return { success: false, error: 'Invalid Ethereum address for match settlement' };
+    if (!isAddress(winnerAddress)) {
+      return { success: false, error: 'Invalid winner Ethereum address for match settlement' };
     }
 
-    // Default ELO deltas if not supplied
-    const winnerStats = await getConnect4PlayerStats(winnerAddress);
-    const loserStats = await getConnect4PlayerStats(loserAddress);
-    const deltas = calculateConnect4EloDelta(winnerStats.elo, loserStats.elo);
-
-    const winDeltaPoints = params.winDelta || deltas.winDelta;
-    const loseDeltaPoints = params.loseDelta || deltas.loseDelta;
-
+    const winDeltaPoints = params.winDelta || 16;
+    const loseDeltaPoints = params.loseDelta || 16;
     const winWei = parseEther(winDeltaPoints.toString());
     const loseWei = parseEther(loseDeltaPoints.toString());
 
-    console.log(`[Connect4Settlement] Settling match ${gameId} on Hemi Sepolia:`);
-    console.log(`Winner: ${winnerAddress} (+${winDeltaPoints} ELO)`);
-    console.log(`Loser:  ${loserAddress} (-${loseDeltaPoints} ELO)`);
-
     const walletClient = getWalletClient();
+
+    // 1. Try recordMatch if both are valid, distinct, human on-chain addresses
+    const isHumanDuel = Boolean(
+      loserAddress &&
+      isAddress(loserAddress) &&
+      loserAddress.toLowerCase() !== winnerAddress.toLowerCase() &&
+      !loserAddress.toLowerCase().includes('bot') &&
+      loserAddress !== '0x000000000000000000000000000000000000B075'
+    );
+
+    if (isHumanDuel && loserAddress) {
+      try {
+        console.log(`[Connect4Settlement] Settling 1v1 match ${gameId} via recordMatch on Hemi Sepolia:`);
+        console.log(`Winner: ${winnerAddress} (+${winDeltaPoints} ELO)`);
+        console.log(`Loser:  ${loserAddress} (-${loseDeltaPoints} ELO)`);
+
+        const hash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESS,
+          abi: connect4Abi,
+          functionName: 'recordMatch',
+          args: [gameId, winnerAddress as `0x${string}`, loserAddress as `0x${string}`, winWei, loseWei],
+        });
+
+        console.log(`[Connect4Settlement] Settlement tx sent: ${hash}`);
+        return { success: true, txHash: hash };
+      } catch (recordErr: any) {
+        console.warn(`[Connect4Settlement] recordMatch notice (${recordErr.message}), falling back to direct adjustElo (Chess pattern)...`);
+      }
+    }
+
+    // 2. Direct ELO adjustment (exact same method as Hemi Chess)
+    console.log(`[Connect4Settlement] Disbursing ELO directly via adjustElo for ${winnerAddress} (+${winDeltaPoints} ELO)...`);
     const hash = await walletClient.writeContract({
       address: CONTRACT_ADDRESS,
       abi: connect4Abi,
-      functionName: 'recordMatch',
-      args: [gameId, winnerAddress as `0x${string}`, loserAddress as `0x${string}`, winWei, loseWei],
+      functionName: 'adjustElo',
+      args: [winnerAddress as `0x${string}`, winWei, true],
     });
 
-    console.log(`[Connect4Settlement] Settlement tx sent: ${hash}`);
+    console.log(`[Connect4Settlement] adjustElo tx sent: ${hash}`);
     return { success: true, txHash: hash };
   } catch (error: any) {
     console.error(`[Connect4Settlement] Settlement failed for ${params.gameId}:`, error);
