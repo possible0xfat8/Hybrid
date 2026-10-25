@@ -8,8 +8,9 @@
     "dev:next": "next dev -p 3000 -H 0.0.0.0",
     "dev:server": "tsx server/index.ts",
     "build": "next build",
+    "build:server": "echo 'Backend build ready'",
     "start": "tsx server/index.ts",
-    "start:server": "node --loader tsx server/index.ts",
+    "start:server": "tsx server/index.ts",
     "lint": "next lint"
   },
   "dependencies": {
@@ -35,6 +36,7 @@
     "socket.io-client": "^4.8.1",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.0.1",
+    "tsx": "^4.19.3",
     "viem": "^2.23.0",
     "wagmi": "^2.14.9"
   },

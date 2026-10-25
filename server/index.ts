@@ -124,7 +124,6 @@ console.log('[ARCH] ✓ Initialized isolated namespace: /uno');
 // 3. ISOLATED NAMESPACE: /connect4
 // ==========================================
 initConnect4Namespace(io);
-console.log('[ARCH] ✓ Initialized isolated namespace: /connect4');
 
 // ==========================================
 // 4. HTTP API ROUTES

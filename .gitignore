@@ -49,3 +49,6 @@ Thumbs.db
 .cache/
 *.tsbuildinfo
 bun.lockb
+
+# Local runtime data
+data/*.json

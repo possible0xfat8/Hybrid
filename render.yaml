@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: hybrid-arcade-backend
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install
+    startCommand: npm run start:server
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: BACKEND_ONLY
+        value: "true"
+      - key: NODE_ENV
+        value: production
