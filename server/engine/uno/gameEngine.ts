@@ -1208,6 +1208,11 @@ export class GameRoom {
       },
       settlementSignature: this.settlementSignature,
       spectatorCount: this.spectators.size,
+      spectators: Array.from(this.spectators.values()).map((s) => ({
+        id: s.id,
+        name: s.name,
+        avatar: s.avatar,
+      })),
       isSpectator: !isTargetSeatedPlayer,
     };
   }

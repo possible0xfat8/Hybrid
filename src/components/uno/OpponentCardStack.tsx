@@ -32,33 +32,33 @@ export const OpponentCardStack: React.FC<OpponentCardStackProps> = ({
       {/* Complete Top Card Back with explicit pixel dimensions */}
       <div
         className={`
-          relative w-[56px] h-[84px] sm:w-[68px] sm:h-[102px]
-          bg-gradient-to-b from-[#26262a] via-[#1c1c1f] to-[#121214]
+          relative w-[52px] h-[78px] sm:w-[62px] sm:h-[92px]
+          bg-gradient-to-b from-[#25252a] via-[#1b1b1e] to-[#101012]
           border-2 border-white/90 rounded-xl
           shadow-xl shadow-black/80 flex flex-col items-center justify-center p-0.5 overflow-hidden
-          ${isCurrentTurn ? 'border-amber-300 ring-2 ring-amber-300/60' : ''}
+          ${isCurrentTurn ? 'border-amber-300 ring-2 ring-amber-300/70 shadow-[0_0_15px_rgba(251,191,36,0.5)]' : ''}
         `}
       >
         {/* Inner hairline frame */}
         <div className="absolute inset-1 rounded-lg border border-white/20 pointer-events-none" />
 
-        {/* CRAZY 8 logo mark matching CardComponent */}
+        {/* CRAZY 8 logo mark */}
         <div className="z-10 flex flex-col items-center justify-center pointer-events-none px-1">
-          <span className="font-['Montserrat','Arial_Black',sans-serif] font-black text-[9px] sm:text-[11px] tracking-widest text-white/90 drop-shadow text-center leading-none">
+          <span className="font-['Montserrat','Arial_Black',sans-serif] font-black text-[8px] sm:text-[10px] tracking-widest text-white/90 drop-shadow text-center leading-none">
             CRAZY
           </span>
-          <span className="font-['Montserrat','Arial_Black',sans-serif] font-black text-base sm:text-2xl text-white drop-shadow leading-none mt-0.5">
+          <span className="font-['Montserrat','Arial_Black',sans-serif] font-black text-sm sm:text-xl text-white drop-shadow leading-none mt-0.5">
             8
           </span>
         </div>
 
         {/* Turn glow if active */}
         {isCurrentTurn && (
-          <div className="absolute inset-0 bg-white/10 animate-pulse pointer-events-none" />
+          <div className="absolute inset-0 bg-amber-400/10 animate-pulse pointer-events-none" />
         )}
       </div>
 
-      {/* Stacked Card Edges (The signature GamePigeon physical vertical card stack) */}
+      {/* Stacked Card Edges (Layered card stack below) */}
       {additionalEdges > 0 && (
         <div className="w-full flex flex-col items-center -mt-0.5">
           {Array.from({ length: additionalEdges }).map((_, idx) => (
@@ -66,7 +66,7 @@ export const OpponentCardStack: React.FC<OpponentCardStackProps> = ({
               key={idx}
               className={`
                 w-full h-1.5 sm:h-2
-                bg-[#18181a] border-b-2 border-x-2 border-white/90
+                bg-[#161618] border-b-2 border-x-2 border-white/90
                 ${idx === additionalEdges - 1 ? 'rounded-b-xl' : ''}
                 ${isCurrentTurn ? 'border-amber-300' : ''}
                 transition-all duration-150
@@ -76,8 +76,8 @@ export const OpponentCardStack: React.FC<OpponentCardStackProps> = ({
         </div>
       )}
 
-      {/* Card Count Pill */}
-      <div className="mt-1 px-2 py-0.2 rounded-full bg-black/90 border border-white/50 text-[8px] sm:text-[9px] font-mono font-black text-amber-300 shadow-md">
+      {/* Card Count Pill — matches reference screenshot with orange glowing border */}
+      <div className="mt-1.5 px-2.5 py-0.5 rounded-full bg-[#140D0E] border border-amber-500/80 text-[10px] sm:text-[11px] font-mono font-black text-amber-300 shadow-md flex items-center justify-center min-w-[28px]">
         {cardCount}
       </div>
     </div>

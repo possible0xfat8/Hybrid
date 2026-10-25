@@ -36,6 +36,7 @@ import { AirdropModal } from './AirdropModal';
 import { AirdropTourToast } from './AirdropTourToast';
 import { NotificationsModal } from './NotificationsModal';
 import { SpectatorRoomsModal } from './SpectatorRoomsModal';
+import { SpectatorSidebarPanel } from './SpectatorSidebarPanel';
 import { fetchTokenBalance, formatTokenAmount, CRAZY8_TOKEN_SYMBOL } from '@/lib/uno/token';
 import {
   WalletState,
@@ -131,14 +132,98 @@ function getOpponentPosition(
   let angleDeg: number;
 
   if (isSpectator) {
-    // Spectator view: evenly distribute all players in a 360-degree circle around the table
-    const step = 360 / Math.max(totalOpponents, 1);
-    angleDeg = (270 - idx * step + 360) % 360;
-    const angleRad = (angleDeg * Math.PI) / 180;
-    leftPercent = 50 + 40 * Math.cos(angleRad);
-    topPercent = 50 - 36 * Math.sin(angleRad);
-    stackPlacement =
-      topPercent < 22 && Math.abs(leftPercent - 50) < 15 ? 'top' : leftPercent < 50 ? 'left' : 'right';
+    if (totalOpponents === 2) {
+      if (idx === 0) {
+        leftPercent = 50;
+        topPercent = 18;
+        stackPlacement = 'right';
+        angleDeg = 90;
+      } else {
+        leftPercent = 50;
+        topPercent = 82;
+        stackPlacement = 'left';
+        angleDeg = 270;
+      }
+    } else if (totalOpponents === 3) {
+      if (idx === 0) {
+        leftPercent = 50;
+        topPercent = 16;
+        stackPlacement = 'right';
+        angleDeg = 90;
+      } else if (idx === 1) {
+        leftPercent = 84;
+        topPercent = 68;
+        stackPlacement = 'right';
+        angleDeg = 330;
+      } else {
+        leftPercent = 16;
+        topPercent = 68;
+        stackPlacement = 'left';
+        angleDeg = 210;
+      }
+    } else if (totalOpponents === 4) {
+      // 4-player game (Matches reference screenshot precisely):
+      // Top: SoliditySam (idx 0)
+      // Left: CyberPepe (idx 1)
+      // Right: 0x0fea...1c37 (idx 2)
+      // Bottom: LumiBear (idx 3)
+      if (idx === 0) {
+        leftPercent = 50;
+        topPercent = 16;
+        stackPlacement = 'right';
+        angleDeg = 90;
+      } else if (idx === 1) {
+        leftPercent = 14;
+        topPercent = 50;
+        stackPlacement = 'left';
+        angleDeg = 180;
+      } else if (idx === 2) {
+        leftPercent = 86;
+        topPercent = 50;
+        stackPlacement = 'right';
+        angleDeg = 0;
+      } else {
+        leftPercent = 50;
+        topPercent = 84;
+        stackPlacement = 'left';
+        angleDeg = 270;
+      }
+    } else if (totalOpponents === 5) {
+      if (idx === 0) {
+        leftPercent = 50;
+        topPercent = 15;
+        stackPlacement = 'right';
+        angleDeg = 90;
+      } else if (idx === 1) {
+        leftPercent = 86;
+        topPercent = 36;
+        stackPlacement = 'right';
+        angleDeg = 35;
+      } else if (idx === 2) {
+        leftPercent = 78;
+        topPercent = 80;
+        stackPlacement = 'right';
+        angleDeg = 315;
+      } else if (idx === 3) {
+        leftPercent = 22;
+        topPercent = 80;
+        stackPlacement = 'left';
+        angleDeg = 225;
+      } else {
+        leftPercent = 14;
+        topPercent = 36;
+        stackPlacement = 'left';
+        angleDeg = 145;
+      }
+    } else {
+      // Fallback for > 5
+      const step = 360 / Math.max(totalOpponents, 1);
+      angleDeg = (270 - idx * step + 360) % 360;
+      const angleRad = (angleDeg * Math.PI) / 180;
+      leftPercent = 50 + 38 * Math.cos(angleRad);
+      topPercent = 50 - 34 * Math.sin(angleRad);
+      stackPlacement = leftPercent < 50 ? 'left' : 'right';
+    }
   } else if (isMobile) {
     // GamePigeon Crazy 8 Stadium Arc Formation (Screenshot 2)
     // Distributes players cleanly around the perimeter without crowding or overlap
@@ -2029,6 +2114,36 @@ export default function App() {
     return list;
   }, [gameState?.players, myPlayerId, isSpectator]);
 
+  // Compute spectator list for sidebar panel (includes real spectators, You entry, and fallbacks)
+  const spectatorList = useMemo(() => {
+    const list: Array<{ id: string; name: string; avatar: string; isYou?: boolean }> = [];
+    if (gameState?.spectators && gameState.spectators.length > 0) {
+      gameState.spectators.forEach((s) => {
+        list.push({
+          id: s.id,
+          name: s.name,
+          avatar: s.avatar,
+          isYou: s.id === account?.id || s.name === account?.name,
+        });
+      });
+    }
+    // Ensure the current user is represented if spectating
+    if (isSpectator) {
+      const myName = account?.name && !isDefaultName(account.name) ? account.name : 'You';
+      const myAvatar = account?.avatar || 'bear';
+      const alreadyThere = list.find((s) => s.isYou || s.name === myName);
+      if (!alreadyThere) {
+        list.unshift({
+          id: account?.id || 'you',
+          name: 'You',
+          avatar: myAvatar,
+          isYou: true,
+        });
+      }
+    }
+    return list;
+  }, [gameState?.spectators, isSpectator, account?.id, account?.name, account?.avatar]);
+
   // Check if each card in hand is playable (Physical deck rules with defensive stacking)
   const isCardPlayable = (c: Card) => {
     if (!isMyTurn || isSpectator) return false;
@@ -2425,19 +2540,53 @@ export default function App() {
                 <span>Re-syncing match state with server...</span>
               </div>
             )}
-            {/* Circular Table Arena with GamePigeon Red Felt Surface */}
+            {/* Stadium Oval Table Arena with Glowing Concentric Tracks (Matches reference screenshot) */}
             <div
-              className="relative w-full max-w-2xl sm:max-w-3xl md:max-w-4xl flex-1 min-h-[200px] max-h-[50vh] flex items-center justify-center my-0.5 px-1 sm:px-4 select-none rounded-3xl sm:rounded-[36px] overflow-hidden shadow-2xl border border-white/[0.06]"
+              className={`relative w-full ${
+                isSpectator
+                  ? 'max-w-4xl lg:max-w-5xl h-[460px] sm:h-[520px] md:h-[560px] my-auto'
+                  : 'max-w-2xl sm:max-w-3xl md:max-w-4xl flex-1 min-h-[200px] max-h-[50vh] my-0.5'
+              } flex items-center justify-center px-2 sm:px-6 select-none rounded-[40px] sm:rounded-[56px] overflow-hidden shadow-2xl border border-white/[0.05] transition-all`}
               style={{
-                backgroundColor: '#1A1215',
+                backgroundColor: '#0C0406',
                 backgroundImage: `
-                  radial-gradient(ellipse at 50% 50%, rgba(60, 18, 18, 0.9) 0%, rgba(30, 10, 10, 0.95) 65%, rgba(14, 6, 6, 1) 100%),
-                  radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px)
+                  radial-gradient(ellipse 90% 80% at 50% 50%, rgba(70, 16, 24, 0.95) 0%, rgba(35, 8, 14, 0.98) 60%, rgba(12, 4, 6, 1) 100%),
+                  radial-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px)
                 `,
                 backgroundSize: '100% 100%, 16px 16px',
               }}
             >
-              {/* Opponent Seats in circular / elliptical formation with equal angle spacing around the felt table */}
+              {/* Outer Glowing Oval Track Ring */}
+              <div className="absolute inset-3 sm:inset-5 md:inset-7 rounded-[50%] border border-red-500/25 pointer-events-none shadow-[0_0_35px_rgba(220,38,38,0.2)]" />
+
+              {/* Inner Concentric Track Ring */}
+              <div className="absolute inset-8 sm:inset-12 md:inset-14 rounded-[50%] border border-red-500/15 pointer-events-none" />
+
+              {/* Directional Chevrons on Track (Screenshot: Subtle orange chevrons along the oval track) */}
+              <div className="absolute inset-0 pointer-events-none z-5">
+                {/* Left Chevron */}
+                <div className="absolute left-[21%] top-1/2 -translate-y-1/2 text-orange-400 font-bold text-sm sm:text-base opacity-80 animate-pulse">
+                  {gameState.turnDirection === 1 ? '❯' : '❮'}
+                </div>
+                {/* Top-Left Chevron */}
+                <div className="absolute left-[28%] top-[24%] text-slate-500/70 font-bold text-xs sm:text-sm -rotate-45">
+                  {gameState.turnDirection === 1 ? '❯' : '❮'}
+                </div>
+                {/* Bottom Chevron */}
+                <div className="absolute left-[44%] top-[72%] text-orange-400 font-bold text-xs sm:text-sm opacity-80">
+                  {gameState.turnDirection === 1 ? '✔' : '❯'}
+                </div>
+                {/* Right Chevron */}
+                <div className="absolute right-[21%] top-1/2 -translate-y-1/2 text-orange-400 font-bold text-sm sm:text-base opacity-80 animate-pulse">
+                  {gameState.turnDirection === 1 ? '❮' : '❯'}
+                </div>
+                {/* Top-Right Chevron */}
+                <div className="absolute right-[28%] top-[24%] text-slate-500/70 font-bold text-xs sm:text-sm rotate-45">
+                  {gameState.turnDirection === 1 ? '❮' : '❯'}
+                </div>
+              </div>
+
+              {/* Opponent Seats in circular / elliptical formation */}
               {opponents.map((opp, idx) => {
                 const pos = getOpponentPosition(idx, opponents.length, isSpectator, isMobile);
                 const isOppTurn = gameState.currentTurnPlayerId === opp.id;
@@ -2489,39 +2638,6 @@ export default function App() {
                   </React.Fragment>
                 );
               })}
-
-              {/* GamePigeon Directional Felt Arrows (Screenshot 2: Chunky white arrows on the felt) */}
-              <div className="absolute inset-0 pointer-events-none z-5">
-                {/* Left Arrow (between lower-left and bottom player, pointing in turn direction) */}
-                <div
-                  className={`absolute left-[28%] ${isMobile ? 'top-[52%]' : 'top-[50%]'} transition-transform duration-700 ${
-                    gameState.turnDirection === 1 ? 'rotate-[-35deg]' : 'rotate-[145deg]'
-                  }`}
-                >
-                  <svg
-                    className="w-5 h-5 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-90 animate-pulse"
-                    viewBox="0 0 24 24"
-                    fill="white"
-                  >
-                    <path d="M10 5L3 12L10 19V14H21V10H10V5Z" />
-                  </svg>
-                </div>
-
-                {/* Right Arrow (between bottom and lower-right player, pointing in turn direction) */}
-                <div
-                  className={`absolute right-[28%] ${isMobile ? 'top-[52%]' : 'top-[50%]'} transition-transform duration-700 ${
-                    gameState.turnDirection === 1 ? 'rotate-[-35deg]' : 'rotate-[145deg]'
-                  }`}
-                >
-                  <svg
-                    className="w-5 h-5 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-90 animate-pulse"
-                    viewBox="0 0 24 24"
-                    fill="white"
-                  >
-                    <path d="M10 5L3 12L10 19V14H21V10H10V5Z" />
-                  </svg>
-                </div>
-              </div>
 
               {/* Center Cards (Draw deck & Discard pile centered on table) */}
               <div

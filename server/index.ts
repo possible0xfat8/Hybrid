@@ -71,13 +71,20 @@ const PORT = parseInt(process.env.PORT || process.env.SERVER_PORT || '3000', 10)
 const isProd = process.env.NODE_ENV === 'production' || process.env.npm_lifecycle_event === 'start';
 const dev = !isProd;
 
-// Initialize Next.js App
-const nextApp = next({ dev, hostname: '0.0.0.0', port: PORT });
-const handle = nextApp.getRequestHandler();
+const isBackendOnly = process.env.BACKEND_ONLY === 'true';
 
-console.log('[NEXT] Preparing Next.js application...');
-await nextApp.prepare();
-console.log('[NEXT] ✓ Next.js prepared and ready to serve pages');
+let handle: any = null;
+if (!isBackendOnly) {
+  // Initialize Next.js App
+  const nextApp = next({ dev, hostname: '0.0.0.0', port: PORT });
+  handle = nextApp.getRequestHandler();
+
+  console.log('[NEXT] Preparing Next.js application...');
+  await nextApp.prepare();
+  console.log('[NEXT] ✓ Next.js prepared and ready to serve pages');
+} else {
+  console.log('[BACKEND] Running in BACKEND_ONLY mode (dedicated real-time socket & API engine)');
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -147,12 +154,23 @@ app.get('/health', (_req, res) => {
 });
 
 // ==========================================
-// 5. NEXT.JS PAGES HANDLER
+// 5. NEXT.JS PAGES HANDLER (OR BACKEND STATUS ROOT)
 // ==========================================
-app.all(/.*/, (req, res) => {
-  const parsedUrl = parse(req.url!, true);
-  handle(req, res, parsedUrl);
-});
+if (!isBackendOnly && handle) {
+  app.all(/.*/, (req, res) => {
+    const parsedUrl = parse(req.url!, true);
+    handle(req, res, parsedUrl);
+  });
+} else {
+  app.get('/', (_req, res) => {
+    res.json({
+      status: 'ok',
+      engine: 'Hemi Arcade Authoritative Game Engine',
+      namespaces: ['/chess', '/uno', '/connect4'],
+      timestamp: new Date().toISOString(),
+    });
+  });
+}
 
 // Start Server on PORT 3000 immediately
 server.listen(PORT, '0.0.0.0', () => {

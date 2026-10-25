@@ -58,8 +58,8 @@ export const CenterTable: React.FC<CenterTableProps> = ({
         ) : null}
       </div>
 
-      {/* 2. ISOLATED CENTER ZONE: DRAW DECK & DISCARD PILE */}
-      <div className="relative z-10 flex items-center justify-center gap-4 sm:gap-6">
+      {/* 2. INNER STADIUM CAPSULE: DRAW DECK & DISCARD PILE (Matches reference screenshot) */}
+      <div className="relative z-10 px-4 py-3 sm:px-6 sm:py-4 rounded-[28px] sm:rounded-[34px] bg-[#140608]/90 border border-red-500/40 shadow-[0_0_30px_rgba(239,68,68,0.25)] flex items-center justify-center gap-5 sm:gap-7 backdrop-blur-md">
         {/* Draw Pile (Deck) */}
         <div id="draw-deck-pile" className="relative flex flex-col items-center">
           <div
@@ -87,9 +87,9 @@ export const CenterTable: React.FC<CenterTableProps> = ({
             )}
           </div>
 
-          {/* Remaining Card Count Badge */}
-          <div className="mt-2 px-2.5 py-0.5 rounded-full bg-black/75 border border-white/15 text-[9px] sm:text-[10px] font-mono font-bold text-slate-300 shadow">
-            {drawPileCount} cards
+          {/* Remaining Card Count Badge (Screenshot: '68 CARDS') */}
+          <div className="mt-2 px-2.5 py-0.5 rounded-full bg-black/80 border border-white/20 text-[9px] sm:text-[10px] font-mono font-bold text-slate-200 shadow-sm tracking-wider uppercase">
+            {drawPileCount} CARDS
           </div>
         </div>
 
@@ -101,22 +101,24 @@ export const CenterTable: React.FC<CenterTableProps> = ({
               <div className="absolute -top-0.5 -left-0.5 w-full h-full bg-black/40 rounded-xl pointer-events-none rotate-[-4deg]" />
               <div className="absolute top-0.5 left-0.5 w-full h-full bg-black/30 rounded-xl pointer-events-none rotate-[3deg]" />
 
-              <CardComponent
-                card={effectiveDiscardCard}
-                size="sm"
-                isPlayable={false}
-                className="shadow-2xl shadow-black/90"
-              />
+              <div className="relative rounded-xl border-2 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.7)]">
+                <CardComponent
+                  card={effectiveDiscardCard}
+                  size="sm"
+                  isPlayable={false}
+                  className="shadow-2xl shadow-black/90"
+                />
+              </div>
             </div>
           ) : (
-            <div className="w-[56px] h-[84px] sm:w-[68px] sm:h-[102px] rounded-xl border-2 border-dashed border-white/30 flex items-center justify-center text-white/40 text-xs font-mono">
+            <div className="w-[52px] h-[78px] sm:w-[62px] sm:h-[92px] rounded-xl border-2 border-dashed border-white/30 flex items-center justify-center text-white/40 text-xs font-mono">
               EMPTY
             </div>
           )}
 
-          {/* Active Color / Suit Indicator */}
+          {/* Active Color / Suit Indicator (Screenshot: '● SUIT: RED') */}
           {activeColor && (
-            <div className="mt-2 px-2.5 py-0.5 rounded-full bg-black/80 border border-white/25 text-[8px] sm:text-[9px] font-black text-white uppercase tracking-wider shadow backdrop-blur-sm flex items-center gap-1.5">
+            <div className="mt-2 px-2.5 py-0.5 rounded-full bg-black/85 border border-white/25 text-[8px] sm:text-[9px] font-mono font-black text-white uppercase tracking-wider shadow backdrop-blur-sm flex items-center gap-1.5">
               <span
                 className="w-2 h-2 rounded-full animate-pulse shadow-sm shrink-0"
                 style={{

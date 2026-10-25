@@ -177,6 +177,7 @@ export interface GameState {
   escrowPot: EscrowPotInfo;
   settlementSignature?: SettlementSignature | null;
   spectatorCount?: number;
+  spectators?: Array<{ id: string; name: string; avatar: string }>;
   isSpectator?: boolean;
 }
 

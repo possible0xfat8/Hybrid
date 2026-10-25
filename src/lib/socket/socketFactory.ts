@@ -1,14 +1,22 @@
 import { io, Socket } from 'socket.io-client';
 
 function getSocketBaseUrl(): string {
-  if (typeof window !== 'undefined') {
-    const configured = process.env.NEXT_PUBLIC_SOCKET_URL;
-    if (!configured || configured.includes(':3001')) {
-      return window.location.origin;
-    }
-    return configured;
+  const configured = (
+    process.env.NEXT_PUBLIC_SOCKET_URL ||
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    ''
+  ).trim();
+
+  if (configured && configured.length > 0) {
+    return configured.replace(/\/+$/, '');
   }
-  return process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000';
+
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+
+  return 'http://localhost:3000';
 }
 
 const BACKEND_URL = getSocketBaseUrl();

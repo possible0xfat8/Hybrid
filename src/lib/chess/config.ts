@@ -8,7 +8,11 @@
  * Note: localStorage is ignored. URL is set at build time only.
  */
 export const DEFAULT_BACKEND_URL =
-  (typeof process !== 'undefined' && (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.VITE_BACKEND_URL)) ||
+  (typeof process !== 'undefined' &&
+    (process.env.NEXT_PUBLIC_SOCKET_URL ||
+      process.env.NEXT_PUBLIC_BACKEND_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      process.env.VITE_BACKEND_URL)) ||
   (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
 
 function normalize(url: string): string {
