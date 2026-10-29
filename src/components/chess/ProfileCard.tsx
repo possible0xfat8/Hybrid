@@ -1,7 +1,9 @@
 import Link from 'next/link'
+import { useAccount } from 'wagmi'
 import { Avatar } from './Avatar'
 import { HelpCircle } from 'lucide-react'
 import { useUserStats, DEFAULT_ELO } from '@/hooks/useUserStats'
+import { getAccountProfileForWallet } from '@/lib/uno/account'
 import { useState } from 'react'
 import { HeloExplanationModal } from './HeloExplanationModal'
 
@@ -16,18 +18,25 @@ interface ProfileCardProps {
  * Mobile: Compact version with avatar, username, and ELO
  */
 export function ProfileCard({ isActive }: ProfileCardProps) {
+  const { address } = useAccount()
   const { data: userStats } = useUserStats()
   const [isModalOpen, setIsModalOpen] = useState(false)
-  
+
+  const cachedProfile = address ? getAccountProfileForWallet(address.toLowerCase()) : null
   const eloRating = userStats?.elo_rating ?? DEFAULT_ELO
-  const username = userStats?.username || 'Player'
+  const username =
+    userStats?.username ||
+    cachedProfile?.name ||
+    (address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Player')
+  const avatarSrc = userStats?.avatar_url || cachedProfile?.avatar
+  const profileHref = address ? `/user/${address}` : '/'
 
   return (
     <>
       {/* Desktop Version - Full Prestigious Card */}
       <div className="hidden md:flex items-center gap-2">
         <Link
-          href="/profile"
+          href={profileHref}
           className={`
             flex items-center gap-3 px-3 py-2.5 rounded-xl
             bg-gradient-to-br from-slate-900/90 via-slate-800/80 to-slate-900/90
@@ -41,7 +50,7 @@ export function ProfileCard({ isActive }: ProfileCardProps) {
           {/* Avatar with online indicator */}
           <div className="relative shrink-0">
             <Avatar
-              src={userStats?.avatar_url}
+              src={avatarSrc}
               alt={username}
               size="md"
               fallbackText={username}
@@ -78,7 +87,7 @@ export function ProfileCard({ isActive }: ProfileCardProps) {
       {/* Mobile Version - Compact Card with Help Button */}
       <div className="md:hidden flex items-center gap-1.5">
         <Link
-          href="/profile"
+          href={profileHref}
           className={`
             flex items-center gap-2 px-2.5 py-2 rounded-lg
             bg-gradient-to-br from-slate-900/90 via-slate-800/80 to-slate-900/90
@@ -92,7 +101,7 @@ export function ProfileCard({ isActive }: ProfileCardProps) {
           {/* Avatar with online indicator */}
           <div className="relative shrink-0">
             <Avatar
-              src={userStats?.avatar_url}
+              src={avatarSrc}
               alt={username}
               size="sm"
               fallbackText={username}

@@ -1,7 +1,17 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import Link from 'next/link';
 import { Socket } from 'socket.io-client';
+import {
+  useAccount,
+  useConnect,
+  useDisconnect,
+  useBalance,
+  useChainId,
+  useSwitchChain,
+} from 'wagmi';
+import { hemiSepolia } from '@/lib/web3/config';
 import { getUnoSocket } from '@/lib/socket/socketFactory';
 import { GameState, Player, Card, CardColor, FloatingEmote, ChatMessage, PublicRoomSummary, GameInviteEvent, EnrichedFriend, UserNotification, isWildCard, isDefenseCard, isActionCard } from '@/types/uno';
 import { soundEngine } from '@/lib/uno/audio';
@@ -44,6 +54,7 @@ import {
   formatAddress,
   getInjectedProvider,
   getActiveProvider,
+  setActiveProvider,
   switchOrAddHemiNetwork,
   fetchEthBalance,
   isHemiChain,
@@ -400,14 +411,30 @@ export default function App() {
   const [friendCount, setFriendCount] = useState(0);
   const [onlineFriendCount, setOnlineFriendCount] = useState(0);
 
-  // Web3 Wallet state
+  // Unified Wagmi Wallet hooks (shared with Hybrid Dashboard, Chess, and Connect 4)
+  const {
+    address: wagmiAddress,
+    isConnected: wagmiConnected,
+    isConnecting: wagmiConnecting,
+    connector: wagmiConnector,
+  } = useAccount();
+  const { connect: wagmiConnect, connectors: wagmiConnectors } = useConnect();
+  const { disconnect: wagmiDisconnect } = useDisconnect();
+  const wagmiChainId = useChainId();
+  const { switchChain: wagmiSwitchChain } = useSwitchChain();
+  const { data: wagmiBalanceData } = useBalance({
+    address: wagmiAddress,
+    chainId: hemiSepolia.id,
+  });
+
+  // Web3 Wallet state (driven by Wagmi shared connection)
   const [wallet, setWallet] = useState<WalletState>({
-    address: null,
-    chainId: null,
-    balance: null,
+    address: wagmiAddress ?? null,
+    chainId: wagmiChainId ?? null,
+    balance: wagmiBalanceData ? parseFloat(wagmiBalanceData.formatted).toFixed(4) : null,
     isConnecting: false,
     error: null,
-    walletName: null,
+    walletName: wagmiConnector?.name ?? null,
   });
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [connectingWalletId, setConnectingWalletId] = useState<string | null>(null);
@@ -614,87 +641,68 @@ export default function App() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [wallet.address]);
 
-  // Check initial connected wallet and listen to account/chain events
+  // Synchronize wallet state directly with the shared Wagmi connection from the Hybrid Dashboard
   useEffect(() => {
     clearLegacyGuestWallet();
-    const provider = getInjectedProvider();
-    if (!provider || !provider.request) return;
 
-    const checkExistingConnection = async () => {
-      try {
-        const accounts: string[] = await provider.request({ method: 'eth_accounts' });
-        if (accounts && accounts.length > 0) {
-          const cleanAddr = accounts[0].trim().toLowerCase();
-          const chainIdHex: string = await provider.request({ method: 'eth_chainId' });
-          const chainIdDec = parseInt(chainIdHex, 16);
-          const balFormatted = await fetchEthBalance(provider, accounts[0]);
-
-          // Immediately hydrate profile for this connected wallet
-          const cached = getOrCreateAccountProfile(cleanAddr);
-          if (cached) {
-            setAccount(cached);
-          }
-          saveLastConnectedWallet(cleanAddr);
-
-          setWallet({
-            address: accounts[0],
-            chainId: chainIdDec,
-            balance: balFormatted,
-            isConnecting: false,
-            error: null,
-            walletName: 'Web3 Wallet',
-          });
-        }
-      } catch (err) {
-        console.warn('Silent wallet check notice:', err);
+    if (wagmiConnected && wagmiAddress) {
+      const cleanAddr = wagmiAddress.trim().toLowerCase();
+      const cached = getOrCreateAccountProfile(cleanAddr);
+      if (cached) {
+        setAccount((prev) => (prev && prev.address?.toLowerCase() === cleanAddr ? prev : cached));
       }
-    };
+      saveLastConnectedWallet(cleanAddr);
 
-    checkExistingConnection();
+      const formattedBal = wagmiBalanceData
+        ? parseFloat(wagmiBalanceData.formatted).toFixed(4)
+        : null;
 
-    const handleAccountsChanged = async (accounts: string[]) => {
-      if (accounts.length === 0) {
-        setWallet((prev) => ({ ...prev, address: null, balance: null }));
-        setAccount(null);
-        saveLastConnectedWallet(null);
-        setGameState(null);
-        setActiveRoomCode(null);
-      } else {
-        const cleanAddr = accounts[0].trim().toLowerCase();
-        const profile = getOrCreateAccountProfile(cleanAddr);
-        if (profile) {
-          setAccount(profile);
-        }
-        saveLastConnectedWallet(cleanAddr);
-        const balFormatted = await fetchEthBalance(provider, accounts[0]);
-        setWallet((prev) => ({ ...prev, address: accounts[0], balance: balFormatted }));
+      setWallet((prev) => ({
+        address: wagmiAddress,
+        chainId: wagmiChainId || HEMI_SEPOLIA_CONFIG.chainIdDecimal,
+        balance: formattedBal ?? prev.balance ?? '0.0000',
+        isConnecting: false,
+        error: null,
+        walletName: wagmiConnector?.name || prev.walletName || 'Web3 Wallet',
+      }));
+
+      // Sync active EIP-1193 provider from Wagmi connector for on-chain escrow/token calls
+      if (wagmiConnector && typeof wagmiConnector.getProvider === 'function') {
+        wagmiConnector
+          .getProvider()
+          .then((prov: any) => {
+            if (prov) {
+              setActiveProvider(prov, wagmiConnector.name, wagmiConnector.id);
+              if (!wagmiBalanceData) {
+                fetchEthBalance(prov, wagmiAddress).then((bal) => {
+                  setWallet((p) => (p.address === wagmiAddress ? { ...p, balance: bal } : p));
+                });
+              }
+            }
+          })
+          .catch(() => {});
       }
-    };
-
-    const handleChainChanged = async (chainIdHex: string) => {
-      const chainIdDec = parseInt(chainIdHex, 16);
-      setWallet((prev) => {
-        if (prev.address) {
-          fetchEthBalance(provider, prev.address).then((bal) => {
-            setWallet((p) => ({ ...p, balance: bal }));
-          });
-        }
-        return { ...prev, chainId: chainIdDec };
+    } else if (!wagmiConnecting) {
+      clearActiveProvider();
+      setWallet({
+        address: null,
+        chainId: null,
+        balance: null,
+        isConnecting: false,
+        error: null,
+        walletName: null,
       });
-    };
-
-    if (provider.on) {
-      provider.on('accountsChanged', handleAccountsChanged);
-      provider.on('chainChanged', handleChainChanged);
+      setAccount(null);
+      saveLastConnectedWallet(null);
     }
-
-    return () => {
-      if (provider.removeListener) {
-        provider.removeListener('accountsChanged', handleAccountsChanged);
-        provider.removeListener('chainChanged', handleChainChanged);
-      }
-    };
-  }, []);
+  }, [
+    wagmiConnected,
+    wagmiAddress,
+    wagmiConnecting,
+    wagmiChainId,
+    wagmiBalanceData?.formatted,
+    wagmiConnector,
+  ]);
 
   const handleConnectWallet = async () => {
     setWalletModalError(null);
@@ -731,32 +739,21 @@ export default function App() {
         walletName: selected.name,
       });
 
-      // Bind accounts/chain change listeners to this specific provider
-      if (selected.provider.on) {
-        selected.provider.on('accountsChanged', (accounts: string[]) => {
-          if (!accounts || accounts.length === 0) {
-            handleDisconnectWallet();
-          } else {
-            const clean = accounts[0].trim().toLowerCase();
-            const p = getOrCreateAccountProfile(clean);
-            if (p) setAccount(p);
-            saveLastConnectedWallet(clean);
-            fetchEthBalance(selected.provider, accounts[0]).then((bal) => {
-              setWallet((prev) => ({ ...prev, address: accounts[0], balance: bal }));
-            });
-          }
-        });
-        selected.provider.on('chainChanged', (chainIdHex: string) => {
-          const chainIdDec = parseInt(chainIdHex, 16);
-          setWallet((prev) => {
-            if (prev.address) {
-              fetchEthBalance(selected.provider, prev.address).then((bal) => {
-                setWallet((p) => ({ ...p, balance: bal }));
-              });
-            }
-            return { ...prev, chainId: chainIdDec };
-          });
-        });
+      // Also connect the matching Wagmi connector so Dashboard, Chess, and Connect 4 share this wallet
+      const matchingConnector =
+        wagmiConnectors.find(
+          (c) =>
+            c.id === selected.rdns ||
+            c.id === selected.id ||
+            (c.id !== 'injected' && c.name.toLowerCase() === selected.name.toLowerCase())
+        ) ||
+        wagmiConnectors.find((c) => c.name.toLowerCase() === selected.name.toLowerCase()) ||
+        wagmiConnectors.find((c) => c.id === 'injected');
+
+      if (matchingConnector && (!wagmiConnected || wagmiAddress?.toLowerCase() !== cleanAddr)) {
+        try {
+          wagmiConnect({ connector: matchingConnector });
+        } catch {}
       }
 
       soundEngine.play('card_deal');
@@ -779,6 +776,13 @@ export default function App() {
   };
 
   const handleDisconnectWallet = () => {
+    try {
+      if (wagmiConnector) {
+        wagmiDisconnect({ connector: wagmiConnector });
+      } else {
+        wagmiDisconnect();
+      }
+    } catch {}
     clearActiveProvider();
     setWallet({
       address: null,
@@ -795,7 +799,10 @@ export default function App() {
   };
 
   const handleSwitchNetwork = async () => {
-    const provider = getInjectedProvider();
+    try {
+      wagmiSwitchChain({ chainId: hemiSepolia.id });
+    } catch {}
+    const provider = getActiveProvider() || getInjectedProvider();
     if (provider) {
       const success = await switchOrAddHemiNetwork(provider, HEMI_SEPOLIA_CONFIG);
       if (success) {
@@ -821,6 +828,7 @@ export default function App() {
 
   // Sync ref for active game state to guard socket listeners
   const gameStateRef = useRef<GameState | null>(null);
+  const quittingRoomCodeRef = useRef<string | null>(null);
   useEffect(() => {
     gameStateRef.current = gameState;
   }, [gameState]);
@@ -1066,6 +1074,14 @@ export default function App() {
     });
 
     s.on('game:state', (state: GameState) => {
+      if (
+        quittingRoomCodeRef.current &&
+        state?.roomCode &&
+        state.roomCode.toUpperCase() === quittingRoomCodeRef.current.toUpperCase()
+      ) {
+        return;
+      }
+      const prevStatus = gameStateRef.current?.status;
       setGameState(state);
       if (state?.roomCode) {
         setActiveRoomCode(state.roomCode);
@@ -1074,6 +1090,33 @@ export default function App() {
           currentUrl.searchParams.set('room', state.roomCode);
           currentUrl.searchParams.delete('join');
           window.history.replaceState({}, '', currentUrl.toString());
+        }
+      }
+
+      // Sync player's authoritative tokenBalance from room state & refresh profile on game_over
+      const curWallet = walletRef.current;
+      if (curWallet.address && state?.players) {
+        const cleanAddr = curWallet.address.toLowerCase();
+        const meInRoom = state.players.find(
+          (p) =>
+            (p.address && p.address.toLowerCase() === cleanAddr) ||
+            (p.id && p.id.toLowerCase() === `wallet_${cleanAddr}`)
+        );
+        if (meInRoom && typeof meInRoom.tokenBalance === 'number') {
+          setTokenBalance(String(meInRoom.tokenBalance));
+        }
+        if (state.status === 'game_over' && prevStatus !== 'game_over') {
+          refreshTokenBalance(curWallet.address);
+          if (accountRef.current?.id) fetchNotifications(accountRef.current.id);
+          fetch(`/api/profile/by-address/${cleanAddr}`)
+            .then((r) => r.json())
+            .then((d) => {
+              if (d?.profile) {
+                const synced = syncAccountWithServerProfile(d.profile);
+                if (synced) setAccount(synced);
+              }
+            })
+            .catch(() => {});
         }
       }
     });
@@ -1348,24 +1391,7 @@ export default function App() {
     };
   }, [gameState?.status, isMusicOn, isMuted]);
 
-  // Prevent quitting during active play: warn browser if navigating away or closing window
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      const isPlayerPlaying =
-        gameState &&
-        gameState.status === 'playing' &&
-        gameState.players.some((p) => account && p.id === account.id);
-      if (isPlayerPlaying) {
-        e.preventDefault();
-        e.returnValue = 'Match in progress! You cannot quit until the game ends.';
-        return e.returnValue;
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [gameState?.status, gameState?.players, account?.id]);
+  // Allow hosts and players to quit or navigate away cleanly at any time
 
   // Explicit resume session action from UI
   const handleResumeSession = (roomCode?: string | null) => {
@@ -1418,6 +1444,7 @@ export default function App() {
     }
 
     if (!activeAddress || !activeAccount) return;
+    quittingRoomCodeRef.current = null;
     setErrorMessage(null);
     s.emit(
       'room:create',
@@ -1463,6 +1490,7 @@ export default function App() {
     }
 
     if (!activeAddress || !activeAccount) return;
+    quittingRoomCodeRef.current = null;
     setErrorMessage(null);
 
     const launchLocal = () => {
@@ -1488,7 +1516,7 @@ export default function App() {
           answered = true;
           launchLocal();
         }
-      }, 1200);
+      }, 8000);
 
       s.emit(
         'room:join',
@@ -1504,6 +1532,11 @@ export default function App() {
           answered = true;
           clearTimeout(timeoutId);
           if (!res.success) {
+            if (res.error && (res.error.includes('Insufficient') || res.error.includes('progress') || res.error.includes('full'))) {
+              setErrorMessage(res.error);
+              toast.error(res.error);
+              return;
+            }
             launchLocal();
           } else {
             isLocalModeRef.current = false;
@@ -1542,6 +1575,7 @@ export default function App() {
     }
 
     if (!activeAddress || !activeAccount) return;
+    quittingRoomCodeRef.current = null;
     setErrorMessage(null);
 
     const targetBuyIn = buyIn || '100';
@@ -1728,16 +1762,15 @@ export default function App() {
         cardCount: 0,
         hand: [],
       };
-      // RULE: When a bot is added, staking is deactivated and pot is set to 0!
+      const updatedPlayers = [...gameState.players, newBot];
+      const currentStakeNum = gameState.isStaking ? (parseFloat(gameState.buyInAmount || '0') || 0) : 0;
       setGameState({
         ...gameState,
-        players: [...gameState.players, newBot],
-        isStaking: false,
-        buyInAmount: '0',
+        players: updatedPlayers,
         escrowPot: {
-          amount: '0.000',
+          amount: (currentStakeNum * updatedPlayers.length).toFixed(0),
           currency: 'CRAZY8',
-          buyInAmount: '0',
+          buyInAmount: gameState.buyInAmount || '0',
         },
       });
       return;
@@ -1762,12 +1795,6 @@ export default function App() {
     const isLocal = isLocalModeRef.current;
     if (isLocal) {
       const stakeNum = parseFloat(targetBuyIn || '0');
-      const hasBots = gameState.players.some((p) => p.isBot);
-      if (hasBots && stakeNum > 0) {
-        setErrorMessage('Cannot enable staking when bots are seated at the table.');
-        setTimeout(() => setErrorMessage(null), 3000);
-        return;
-      }
       setGameState({
         ...gameState,
         isStaking: stakeNum > 0,
@@ -1975,33 +2002,47 @@ export default function App() {
   };
 
   const handleLeaveRoom = () => {
-    if (isLocalModeRef.current) {
-      isLocalModeRef.current = false;
-      localDrawPileRef.current = [];
-      setActiveRoomCode(null);
-      setGameState(null);
-      setChatMessages([]);
-      const currentUrl = new URL(window.location.href);
-      currentUrl.searchParams.delete('room');
-      currentUrl.searchParams.delete('join');
-      window.history.replaceState({}, '', currentUrl.pathname);
-      return;
+    const leavingRoomCode = gameState?.roomCode || getActiveRoomCode() || undefined;
+    if (leavingRoomCode) {
+      quittingRoomCodeRef.current = leavingRoomCode;
+      setTimeout(() => {
+        if (quittingRoomCodeRef.current === leavingRoomCode) {
+          quittingRoomCodeRef.current = null;
+        }
+      }, 2500);
     }
-    const isPlayerPlaying = gameState && gameState.status === 'playing' && gameState.players.some((p) => account && p.id === account.id);
-    if (isPlayerPlaying) {
-      setErrorMessage('You cannot quit while the game is in progress! You must complete the match or wait until it ends.');
-      return;
-    }
-    if (socket) {
-      socket.emit('room:leave');
-    }
+
+    isLocalModeRef.current = false;
+    localDrawPileRef.current = [];
+    gameStateRef.current = null;
+    setPendingWildCard(null);
     setActiveRoomCode(null);
     setGameState(null);
     setChatMessages([]);
+    setErrorMessage(null);
+
     const currentUrl = new URL(window.location.href);
     currentUrl.searchParams.delete('room');
     currentUrl.searchParams.delete('join');
     window.history.replaceState({}, '', currentUrl.pathname);
+
+    if (socket) {
+      socket.emit(
+        'room:leave',
+        {
+          accountId: account?.id || myPlayer?.id,
+          address: wallet.address,
+          roomCode: leavingRoomCode,
+        },
+        () => {
+          refreshLiveRooms();
+          refreshLiveStats();
+          if (wallet.address) {
+            refreshTokenBalance(wallet.address);
+          }
+        }
+      );
+    }
     refreshLiveRooms();
   };
 
@@ -2029,7 +2070,12 @@ export default function App() {
     gameState?.currentTurnPlayerId === myPlayer.id ||
     gameState?.currentTurnPlayerId === myPlayerId
   );
-  const isHost = !!myPlayer && (gameState?.hostId === myPlayer.id || gameState?.hostId === myPlayerId);
+  const isHost =
+    !!myPlayer &&
+    (!!myPlayer.isHost ||
+      gameState?.hostId === myPlayer.id ||
+      gameState?.hostId === myPlayerId ||
+      (!!wallet.address && gameState?.hostId?.toLowerCase() === `wallet_${wallet.address.toLowerCase()}`));
 
   // Auto-recovery: If player is seated during a live match but hand is missing or desynced, re-request state
   useEffect(() => {
@@ -2165,14 +2211,14 @@ export default function App() {
       <header className="h-12 sm:h-14 px-2.5 sm:px-6 md:px-8 border-b border-white/[0.06] bg-[#0C0F14]/95 backdrop-blur-md flex items-center justify-between shrink-0 z-20">
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 min-w-0">
           {/* Return to Arcade Hub */}
-          <a
+          <Link
             href="/"
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-bold text-slate-300 hover:text-white border border-white/10 transition-colors shrink-0"
             title="Back to Arcade"
           >
             <ArrowLeft className="w-3.5 h-3.5 text-[#FF4600]" />
             <span className="hidden xs:inline">Arcade</span>
-          </a>
+          </Link>
           <HemiUnoLogo size="md" variant="clean" />
           <div className="hidden sm:flex flex-col">
             <div className="text-[11px] text-slate-400 flex items-center gap-1.5 font-mono">
@@ -2379,15 +2425,17 @@ export default function App() {
             </button>
           )}
 
-          {/* Playing: Match Locked — desktop only */}
+          {/* Playing: Quit Game button for Host and Players */}
           {gameState && gameState.status === 'playing' && !isSpectator && (
-            <div
-              className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 text-[11px] font-mono text-slate-500 select-none cursor-not-allowed shrink-0"
-              title="Quitting is locked while the match is in progress."
+            <button
+              type="button"
+              onClick={handleLeaveRoom}
+              className="flex items-center gap-1 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/35 text-rose-300 hover:text-rose-100 text-xs font-bold transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
+              title={isHost ? 'End & Quit Game (Return to Lobby)' : 'Quit Game and return to Lobby'}
             >
-              <Lock className="w-3.5 h-3.5 text-amber-500/80" />
-              <span className="hidden lg:inline">Match Locked</span>
-            </div>
+              <LogOut className="w-3.5 h-3.5 text-rose-400" />
+              <span>Quit Game</span>
+            </button>
           )}
 
           {/* Game Over: Quit to Lobby */}
@@ -3053,6 +3101,17 @@ export default function App() {
                   <div className="flex items-center gap-1.5 sm:gap-2">
                     {/* Reaction Emote Wheel */}
                     <ReactionWheel onSendEmote={handleSendEmote} />
+
+                    {/* Quit Game button directly in bottom action bar */}
+                    <button
+                      type="button"
+                      onClick={handleLeaveRoom}
+                      className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 hover:text-rose-100 text-[11px] sm:text-xs font-bold transition-all cursor-pointer active:scale-95"
+                      title={isHost ? 'End & Quit Game (Return to Lobby)' : 'Quit Game and return to Lobby'}
+                    >
+                      <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Quit Game</span>
+                    </button>
                   </div>
 
                   {/* Hand Action Buttons: Consolidated single trigger (penalty action handled cleanly in defense banner) */}
@@ -3177,6 +3236,7 @@ export default function App() {
           gameState={gameState}
           myPlayerId={myPlayerId}
           isHost={isHost}
+          tokenBalance={tokenBalance}
           onRematch={handleRematch}
           onLeaveRoom={handleLeaveRoom}
           onOpenProfile={(p) => setInspectProfile(p)}

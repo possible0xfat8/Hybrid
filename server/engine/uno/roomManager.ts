@@ -32,7 +32,8 @@ export class RoomManager {
       const roomId = `room_pub_${t.code.toLowerCase()}`;
       const hostId = `host_${t.code.toLowerCase()}`;
       const room = new GameRoom(roomId, t.code, hostId);
-      room.buyInAmount = '0.000';
+      room.buyInAmount = '100';
+      room.isStaking = true;
       room.customMode = t.mode;
       room.description = t.desc;
       room.isSeededPublic = true;
@@ -78,42 +79,93 @@ export class RoomManager {
     pot: string,
     cardsPlayedMap: Record<string, number>
   ): void {
+    const buyInNum = room.isStaking ? (parseFloat(room.buyInAmount || '0') || 0) : 0;
+    const potNum = room.isStaking
+      ? (room.getPotAmount() || parseFloat(pot) || (players.length * buyInNum))
+      : 0;
+    const payout = potNum > 0 ? Math.round(potNum * 0.95) : 0;
+
+    // 1. Credit winner's balance if winner is a human player in a staked match
+    if (winner && !winner.isBot && payout > 0 && room.isStaking) {
+      const targetId = winner.address || winner.id;
+      serverDb.creditUserTokenBalance(targetId, payout);
+    }
+
+    // 2. Record match stats (wins, losses, totalWinnings = payout, totalLosses = buyInNum)
     serverDb.recordGameFinished(
       winner.id,
       players.filter(p => !p.isBot).map(p => p.id),
-      pot,
+      payout.toString(),
       cardsPlayedMap,
-      room.roomCode
+      room.roomCode,
+      buyInNum
     );
 
-    const potNum = room.getPotAmount() || parseFloat(pot) || 0;
-    if (winner && potNum > 0 && room.isStaking) {
-      const payout = Math.round(potNum * 0.95);
-      const targetId = winner.address || winner.id;
-      serverDb.creditUserTokenBalance(targetId, payout);
-      const newBal = serverDb.getUserTokenBalance(targetId);
+    // 3. Clear stakes for the finished round
+    room.clearStakes();
 
-      if (winner.address) {
-        this.io.to(`wallet:${winner.address.toLowerCase()}`).emit('token:balance_updated', {
-          address: winner.address,
-          balance: newBal.toString(),
-          credited: payout,
-          reason: `Won pot of ${payout} $CRAZY8 in Room #${room.roomCode}`,
+    // 4. Broadcast updated wallet balance and profile stats to ALL human players (winner & losers)
+    for (const p of players) {
+      if (p.isBot) continue;
+      const targetId = p.address || p.id;
+      const newBal = serverDb.getUserTokenBalance(targetId);
+      const isWinner =
+        p.id === winner.id ||
+        (p.address && winner.address && p.address.toLowerCase() === winner.address.toLowerCase());
+
+      const balancePayload = isWinner
+        ? {
+            address: p.address,
+            balance: newBal.toString(),
+            credited: payout,
+            reason:
+              payout > 0
+                ? `Won pot of ${payout} $CRAZY8 in Room #${room.roomCode}`
+                : `Won match in Room #${room.roomCode}`,
+          }
+        : {
+            address: p.address,
+            balance: newBal.toString(),
+            debited: buyInNum,
+            reason:
+              buyInNum > 0
+                ? `Lost ${buyInNum} $CRAZY8 stake in Room #${room.roomCode}`
+                : `Match finished in Room #${room.roomCode}`,
+          };
+
+      if (p.address) {
+        this.io.to(`wallet:${p.address.toLowerCase()}`).emit('token:balance_updated', balancePayload);
+      }
+      if (p.socketId) {
+        this.io.to(p.socketId).emit('token:balance_updated', balancePayload);
+      }
+
+      if (!isWinner && buyInNum > 0) {
+        serverDb.addNotification(p.id, {
+          type: 'system',
+          title: `Match Lost: -${buyInNum} $CRAZY8`,
+          message: `${winner.name} won the ${potNum} $CRAZY8 pot in Room #${room.roomCode}. Your ${buyInNum} $CRAZY8 stake was disbursed to the pot.`,
+          amount: `-${buyInNum}`,
+          roomCode: room.roomCode,
         });
       }
-      if (winner.socketId) {
-        this.io.to(winner.socketId).emit('token:balance_updated', {
-          address: winner.address,
-          balance: newBal.toString(),
-          credited: payout,
-          reason: `Won pot of ${payout} $CRAZY8 in Room #${room.roomCode}`,
-        });
+
+      const updatedUser =
+        (p.address ? serverDb.getUserByAddress(p.address) : undefined) ||
+        serverDb.getUser(p.id);
+      if (updatedUser) {
+        if (p.socketId) {
+          this.io.to(p.socketId).emit('profile:synced', updatedUser);
+          this.io.to(p.socketId).emit('profile:updated', updatedUser);
+        }
+        if (p.address) {
+          this.io.to(`wallet:${p.address.toLowerCase()}`).emit('profile:updated', updatedUser);
+        }
       }
-      room.clearStakes();
     }
 
-    // If winner has an on-chain address, settle on Hemi Sepolia
-    if (winner && winner.address && winner.address.startsWith('0x')) {
+    // 5. If human winner has an on-chain address and pot > 0, execute HemiCrazy8Escrow on-chain disbursement
+    if (winner && !winner.isBot && winner.address && winner.address.startsWith('0x') && potNum > 0) {
       settleMatchOnChain(room.roomCode, winner.address, potNum)
         .then(settleRes => {
           if (settleRes.success) {
@@ -121,11 +173,11 @@ export class RoomManager {
               room.settlementSignature = {
                 roomId: room.roomId,
                 winnerAddress: winner.address!,
-                potAmount: pot,
+                potAmount: potNum.toFixed(0),
                 nonce: Date.now(),
                 timestamp: Date.now(),
                 signature: settleRes.txHash,
-                contractAddress: process.env.CRAZY8_TOKEN_ADDRESS || '0x19B111602A60442CCbe947a58a5fd7CB0195324E',
+                contractAddress: getEscrowAddress(),
                 network: 'Hemi Sepolia (Chain ID 743111)',
               };
               this.broadcastRoomState(room);
@@ -136,7 +188,7 @@ export class RoomManager {
               roomCode: room.roomCode,
               winnerAddress: winner.address,
               txHash: settleRes.txHash,
-              payout: settleRes.winnerPayout,
+              payout: settleRes.winnerPayout || payout.toString(),
               fee: settleRes.boardFee,
             });
 
@@ -146,18 +198,18 @@ export class RoomManager {
               this.io.to(`wallet:${winner.address.toLowerCase()}`).emit('token:balance_updated', {
                 address: winner.address,
                 balance: currentBal.toString(),
-                credited: settleRes.winnerPayout,
-                reason: `On-chain pot payout for Room #${room.roomCode}`,
+                credited: settleRes.winnerPayout || payout.toString(),
+                reason: `On-chain escrow payout for Room #${room.roomCode}`,
               });
             }
 
             // Store notification in winner's profile
             serverDb.addNotification(winner.id, {
               type: 'match_won',
-              title: `🏆 Pot Won: ${pot} $CRAZY8!`,
-              message: `Victory in Room #${room.roomCode}! 95% payout (${settleRes.winnerPayout || pot} CRAZY8) credited to your Hemi wallet.`,
+              title: `🏆 Pot Won: +${payout} $CRAZY8!`,
+              message: `Victory in Room #${room.roomCode}! 95% escrow payout (${settleRes.winnerPayout || payout} CRAZY8) disbursed to your Hemi Sepolia wallet.`,
               txHash: settleRes.txHash,
-              amount: pot,
+              amount: payout.toString(),
               roomCode: room.roomCode,
             });
           }
@@ -165,19 +217,32 @@ export class RoomManager {
         .catch(err => {
           console.warn(`[RoomManager] Settlement error for ${room.roomCode}:`, err);
         });
+    } else if (winner && !winner.isBot && payout > 0) {
+      serverDb.addNotification(winner.id, {
+        type: 'match_won',
+        title: `🏆 Pot Won: +${payout} $CRAZY8!`,
+        message: `Victory in Room #${room.roomCode}! 95% payout (${payout} CRAZY8) credited to your wallet balance.`,
+        amount: payout.toString(),
+        roomCode: room.roomCode,
+      });
     }
   }
 
   private reseedPublicRoom(room: GameRoom): void {
+    room.stopTurnTimer();
     const template = this.publicTemplates.find(t => t.code === room.roomCode);
     if (!template) {
       this.destroyRoom(room.roomId);
       return;
     }
 
+    room.abortGame('Table reset to lobby.');
     room.status = 'lobby';
     room.players = [];
     room.spectators.clear();
+    room.buyInAmount = '100';
+    room.isStaking = true;
+    room.clearStakes();
     const hostId = `host_${template.code.toLowerCase()}`;
     room.hostId = hostId;
 
@@ -196,6 +261,7 @@ export class RoomManager {
     }
 
     this.broadcastRoomState(room);
+    this.broadcastPublicRooms();
   }
 
   public generateRoomCode(): string {
@@ -225,16 +291,13 @@ export class RoomManager {
   ): GameRoom {
     this.clearDisconnectTimer(accountId);
 
-    // If account was in another room, leave it
-    const existingRoomId = this.accountToRoomId.get(accountId);
-    if (existingRoomId) {
-      this.handleLeaveRoom(accountId, hostSocketId);
-    }
-
     const cleanAddr = address && address.startsWith('0x') ? address.trim().toLowerCase() : undefined;
     if (!cleanAddr) {
       throw new Error('Wallet connection required to create a game room');
     }
+
+    // If account or wallet was in another room, leave it cleanly first
+    this.handleLeaveRoom(accountId, hostSocketId, true, cleanAddr);
 
     const dbUser = serverDb.getUserByAddress(cleanAddr) || serverDb.linkOrGetUserByAddress(cleanAddr, accountId, { name: playerName, avatar });
     if (playerName && !isDefaultName(playerName) && (isDefaultName(dbUser.name) || !dbUser.name)) {
@@ -362,6 +425,15 @@ export class RoomManager {
     // Check if player is already seated in this room (by accountId, wallet address, canonicalId, or socket)
     const cleanAddrPre = address && address.startsWith('0x') ? address.trim().toLowerCase() : undefined;
     const canonicalIdPre = cleanAddrPre ? `wallet_${cleanAddrPre}` : accountId;
+
+    // If player is currently registered in a DIFFERENT room, leave that old room first
+    const prevRoomId =
+      this.accountToRoomId.get(accountId) ||
+      this.accountToRoomId.get(canonicalIdPre) ||
+      (socketId ? this.socketToRoomId.get(socketId) : undefined);
+    if (prevRoomId && prevRoomId !== room.roomId) {
+      this.handleLeaveRoom(accountId, socketId, true, cleanAddrPre);
+    }
 
     let existingPlayer = room.players.find(p =>
       p.id === accountId ||
@@ -543,7 +615,7 @@ export class RoomManager {
     this.clearDisconnectTimer(canonicalId);
     this.clearDisconnectTimer(accountId);
 
-    // If already in an active Quick Match room lobby, resume it. If in an old practice/custom table, exit it.
+    // If already in an active Quick Match room lobby, resume it. If in any other room, exit it cleanly.
     const existingRoomId = this.accountToRoomId.get(canonicalId) || this.accountToRoomId.get(accountId);
     if (existingRoomId) {
       const existing = this.rooms.get(existingRoomId);
@@ -557,9 +629,8 @@ export class RoomManager {
             playerId: resumeRes.playerId || canonicalId,
           };
         }
-      } else if (existing && !existing.isQuickMatch) {
-        // Leave stale practice room so the player enters a clean Quick Match contest room
-        this.handleLeaveRoom(canonicalId, socketId);
+      } else if (existing) {
+        this.handleLeaveRoom(canonicalId, socketId, true, cleanAddr, existing.roomCode);
       }
     }
 
@@ -773,34 +844,82 @@ export class RoomManager {
     return { success: true, room };
   }
 
-  public handleLeaveRoom(accountId: string, socketId?: string, force: boolean = false): boolean {
-    const roomId = this.accountToRoomId.get(accountId) || (socketId ? this.socketToRoomId.get(socketId) : undefined);
-    if (!roomId) return true;
+  public handleLeaveRoom(
+    accountId?: string | null,
+    socketId?: string,
+    force: boolean = true,
+    address?: string,
+    roomCode?: string
+  ): boolean {
+    const cleanAddr = address && address.trim().startsWith('0x') ? address.trim().toLowerCase() : undefined;
+    const canonicalAddrId = cleanAddr ? `wallet_${cleanAddr}` : undefined;
 
-    const room = this.rooms.get(roomId);
-    if (!room) return true;
-
-    // Active players cannot quit while the match is in progress
-    const player = room.players.find(p => p.id === accountId);
-    if (player && room.status === 'playing' && !force) {
-      return false;
+    let room: GameRoom | null = null;
+    if (roomCode) {
+      room = this.getRoomByCode(roomCode);
+    }
+    if (!room) {
+      const roomId =
+        (accountId ? this.accountToRoomId.get(accountId) : undefined) ||
+        (canonicalAddrId ? this.accountToRoomId.get(canonicalAddrId) : undefined) ||
+        (socketId ? this.socketToRoomId.get(socketId) : undefined);
+      if (roomId) {
+        room = this.rooms.get(roomId) || null;
+      }
     }
 
-    this.clearDisconnectTimer(accountId);
-    this.accountToRoomId.delete(accountId);
-    serverDb.setUserPresence(accountId, 'online', null);
+    // Fallback scan across all rooms if still not found
+    if (!room) {
+      for (const r of this.rooms.values()) {
+        const found = r.players.some(
+          p =>
+            (accountId && r.isSamePlayer(p, accountId)) ||
+            (cleanAddr && r.isSamePlayer(p, cleanAddr)) ||
+            (socketId && p.socketId === socketId)
+        );
+        if (found || (accountId && r.spectators.has(accountId))) {
+          room = r;
+          break;
+        }
+      }
+    }
 
+    if (accountId) {
+      this.clearDisconnectTimer(accountId);
+      this.accountToRoomId.delete(accountId);
+      serverDb.setUserPresence(accountId, 'online', null);
+    }
+    if (canonicalAddrId) {
+      this.clearDisconnectTimer(canonicalAddrId);
+      this.accountToRoomId.delete(canonicalAddrId);
+      serverDb.setUserPresence(canonicalAddrId, 'online', null);
+    }
     if (socketId) {
       this.socketToRoomId.delete(socketId);
       this.socketToAccountId.delete(socketId);
     }
 
+    if (!room) return true;
+
+    const player = room.players.find(
+      p =>
+        (accountId && room!.isSamePlayer(p, accountId)) ||
+        (cleanAddr && room!.isSamePlayer(p, cleanAddr)) ||
+        (socketId && p.socketId === socketId)
+    );
+
+    if (player) {
+      this.clearDisconnectTimer(player.id);
+      this.accountToRoomId.delete(player.id);
+      serverDb.setUserPresence(player.id, 'online', null);
+    }
+
     // Check if spectator by accountId or socketId
-    let specToRemove = room.spectators.get(accountId);
+    let specToRemove = accountId ? room.spectators.get(accountId) : undefined;
     if (!specToRemove && socketId) {
       specToRemove = Array.from(room.spectators.values()).find(s => s.socketId === socketId);
     }
-    if (specToRemove) {
+    if (specToRemove && !player) {
       room.removeSpectator(specToRemove.id);
       this.broadcastRoomState(room);
       this.broadcastPublicRooms();
@@ -808,13 +927,17 @@ export class RoomManager {
     }
 
     if (player) {
+      const wasHost = player.isHost || room.hostId === player.id;
+      const wasPlaying = room.status === 'playing';
+
       // Refund stake if leaving from lobby before game started
-      if (room.status === 'lobby' && room.hasPlayerStaked(accountId)) {
-        const stakeToRefund = room.getPlayerStake(accountId);
+      if (room.status === 'lobby' && (room.hasPlayerStaked(player.id) || (accountId && room.hasPlayerStaked(accountId)))) {
+        const stakeId = room.hasPlayerStaked(player.id) ? player.id : accountId!;
+        const stakeToRefund = room.getPlayerStake(stakeId);
         if (stakeToRefund > 0) {
-          const refundTarget = player.address || accountId;
+          const refundTarget = player.address || player.id;
           serverDb.creditUserTokenBalance(refundTarget, stakeToRefund);
-          room.removeStake(accountId);
+          room.removeStake(stakeId);
           const newBal = serverDb.getUserTokenBalance(refundTarget);
           if (player.address) {
             this.io.to(`wallet:${player.address.toLowerCase()}`).emit('token:balance_updated', {
@@ -835,6 +958,35 @@ export class RoomManager {
         }
       }
 
+      // If the Host quits while the game is in progress, refund stakes and end/reset the match
+      if (wasPlaying && wasHost) {
+        if (room.isStaking) {
+          this.refundAllRoomStakes(room, `Table Host ${player.name} ended the match in Room #${room.roomCode}.`);
+        }
+        room.addChatMessage({
+          senderId: 'system',
+          senderName: 'SYSTEM',
+          senderAvatar: '🛑',
+          text: `Host ${player.name} ended the match and left the room.`,
+          isSystem: true,
+        });
+        room.removePlayer(player.id);
+
+        const humanCount = room.players.filter(pl => !pl.isBot).length;
+        if (humanCount === 0) {
+          if (room.isSeededPublic) {
+            this.reseedPublicRoom(room);
+          } else {
+            this.destroyRoom(room.roomId);
+          }
+        } else {
+          room.abortGame(`Host ${player.name} quit the match. Returned to lobby.`);
+          this.broadcastRoomState(room);
+          this.broadcastPublicRooms();
+        }
+        return true;
+      }
+
       room.addChatMessage({
         senderId: 'system',
         senderName: 'SYSTEM',
@@ -842,7 +994,7 @@ export class RoomManager {
         text: `${player.name} left the room.`,
         isSystem: true,
       });
-      room.removePlayer(accountId);
+      room.removePlayer(player.id);
 
       const humanCount = room.players.filter(pl => !pl.isBot).length;
       if (humanCount === 0) {
@@ -853,6 +1005,7 @@ export class RoomManager {
         }
       } else {
         this.broadcastRoomState(room);
+        this.broadcastPublicRooms();
       }
     }
     return true;
@@ -982,12 +1135,6 @@ export class RoomManager {
     }
 
     const buyInNum = parseFloat(buyIn || '0');
-    const hasBots = room.players.some(p => p.isBot);
-
-    // RULE: When a bot is in the game, staking is strictly non-active!
-    if (hasBots && buyInNum > 0) {
-      return { success: false, error: 'Staking is not allowed when bots are present in the lobby. Remove bots to enable staking.' };
-    }
 
     if (buyInNum <= 0) {
       // Deactivate staking
@@ -1031,7 +1178,7 @@ export class RoomManager {
     // Refund previous stakes before charging new stake amount
     this.refundAllRoomStakes(room, `Updating stake to ${buyInNum} $CRAZY8 in Room #${room.roomCode}.`);
 
-    // Debit each seated human player for the new stake
+    // Debit each seated human player for the new stake and record house-sponsored stakes for bots
     for (const p of room.players) {
       if (!p.isBot) {
         const target = p.address || p.id;
@@ -1056,6 +1203,8 @@ export class RoomManager {
             });
           }
         }
+      } else {
+        room.recordStake(p.id, buyInNum);
       }
     }
 
@@ -1072,13 +1221,79 @@ export class RoomManager {
     return { success: true, room };
   }
 
+  public ensureStakesForMatchStart(room: GameRoom): { success: boolean; error?: string } {
+    if (!room.isStaking) return { success: true };
+    const buyInNum = parseFloat(room.buyInAmount || '0');
+    if (buyInNum <= 0) return { success: true };
+
+    // Verify all unstaked human players have enough balance
+    for (const p of room.players) {
+      if (!p.isBot && !room.hasPlayerStaked(p.id)) {
+        const target = p.address || p.id;
+        const currentBal = serverDb.getUserTokenBalance(target);
+        if (currentBal < buyInNum) {
+          return {
+            success: false,
+            error: `Cannot start: ${p.name} has insufficient chips (${currentBal} $CRAZY8) for the ${buyInNum} $CRAZY8 table stake.`,
+          };
+        }
+      }
+    }
+
+    // Debit any unstaked human players (e.g., on rematch) and record bot stakes
+    for (const p of room.players) {
+      if (!room.hasPlayerStaked(p.id)) {
+        if (!p.isBot) {
+          const target = p.address || p.id;
+          const debited = serverDb.debitUserTokenBalance(target, buyInNum);
+          if (!debited) {
+            return {
+              success: false,
+              error: `Failed to debit ${buyInNum} $CRAZY8 stake from ${p.name}.`,
+            };
+          }
+          room.recordStake(p.id, buyInNum);
+          const newBal = serverDb.getUserTokenBalance(target);
+          if (p.address) {
+            this.io.to(`wallet:${p.address.toLowerCase()}`).emit('token:balance_updated', {
+              address: p.address,
+              balance: newBal.toString(),
+              debited: buyInNum,
+              reason: `Staked ${buyInNum} $CRAZY8 for match in Room #${room.roomCode}`,
+            });
+          }
+          if (p.socketId) {
+            this.io.to(p.socketId).emit('token:balance_updated', {
+              address: p.address,
+              balance: newBal.toString(),
+              debited: buyInNum,
+              reason: `Staked ${buyInNum} $CRAZY8 for match in Room #${room.roomCode}`,
+            });
+          }
+        } else {
+          room.recordStake(p.id, buyInNum);
+        }
+      }
+    }
+
+    return { success: true };
+  }
+
   public destroyRoom(roomId: string): void {
     const room = this.rooms.get(roomId);
     if (!room) return;
 
-    // If room is destroyed while still in lobby, refund any active player stakes
-    if (room.status === 'lobby') {
+    room.stopTurnTimer();
+
+    // If room is destroyed before game_over, refund any active player stakes
+    if (room.status === 'lobby' || room.status === 'playing') {
       this.refundAllRoomStakes(room, `Room #${room.roomCode} disbanded.`);
+    }
+
+    for (const [accId, rId] of Array.from(this.accountToRoomId.entries())) {
+      if (rId === roomId) {
+        this.accountToRoomId.delete(accId);
+      }
     }
 
     this.codeToRoomId.delete(room.roomCode);

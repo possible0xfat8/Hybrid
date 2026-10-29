@@ -8,6 +8,7 @@ interface VictoryModalProps {
   gameState: GameState;
   myPlayerId: string;
   isHost: boolean;
+  tokenBalance?: string;
   onRematch: () => void;
   onLeaveRoom?: () => void;
   onOpenProfile?: (player: Player) => void;
@@ -17,6 +18,7 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
   gameState,
   myPlayerId,
   isHost,
+  tokenBalance,
   onRematch,
   onLeaveRoom,
   onOpenProfile,
@@ -27,6 +29,15 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
   const winner = gameState.winner;
   const isMe = winner?.id === myPlayerId;
   const signature = gameState.settlementSignature;
+
+  const potAmountNum = parseFloat(gameState.escrowPot?.amount || '0') || 0;
+  const buyInNum = parseFloat(gameState.escrowPot?.buyInAmount || gameState.buyInAmount || '0') || 0;
+  const payoutNum = Math.round(potAmountNum * 0.95);
+  const netProfitNum = Math.max(0, payoutNum - buyInNum);
+  const myPlayerObj = gameState.players.find((p) => p.id === myPlayerId);
+  const displayWalletBalance =
+    tokenBalance ||
+    (typeof myPlayerObj?.tokenBalance === 'number' ? myPlayerObj.tokenBalance.toString() : undefined);
 
   useEffect(() => {
     // Launch celebratory confetti
@@ -111,7 +122,7 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
               : `${winner?.name} has emptied their hand first.`}
           </p>
 
-          {/* Pot settlement badge */}
+          {/* Pot settlement & Wallet Balance Change badge */}
           <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-white/[0.02] border border-white/[0.06] mb-3 sm:mb-4">
             <div className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5 sm:mb-1">
               Escrow Pot Award ($CRAZY8)
@@ -125,12 +136,42 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({
             <div className="mt-2 pt-2 border-t border-white/[0.06] grid grid-cols-2 gap-2 text-[10px] sm:text-[11px] font-mono">
               <div className="p-1.5 rounded-lg bg-white/[0.02] border border-white/[0.06] text-slate-300">
                 <div className="text-[9px] uppercase font-medium text-slate-400">95% Winner Payout</div>
-                <div className="font-bold text-xs text-white">{(parseFloat(gameState.escrowPot.amount) * 0.95).toFixed(1)} {gameState.escrowPot.currency === 'ETH' ? 'CRAZY8' : gameState.escrowPot.currency}</div>
+                <div className="font-bold text-xs text-white">{(potAmountNum * 0.95).toFixed(0)} {gameState.escrowPot.currency === 'ETH' ? 'CRAZY8' : gameState.escrowPot.currency}</div>
               </div>
               <div className="p-1.5 rounded-lg bg-white/[0.02] border border-white/[0.06] text-slate-300">
                 <div className="text-[9px] uppercase font-medium text-slate-400">5% Board Fee</div>
-                <div className="font-bold text-xs text-white">{(parseFloat(gameState.escrowPot.amount) * 0.05).toFixed(1)} {gameState.escrowPot.currency === 'ETH' ? 'CRAZY8' : gameState.escrowPot.currency}</div>
+                <div className="font-bold text-xs text-white">{(potAmountNum * 0.05).toFixed(0)} {gameState.escrowPot.currency === 'ETH' ? 'CRAZY8' : gameState.escrowPot.currency}</div>
               </div>
+            </div>
+
+            {/* Your Wallet Balance Change Summary */}
+            <div className="mt-2.5 pt-2.5 border-t border-white/[0.06] flex items-center justify-between gap-2 text-[11px] sm:text-xs font-mono">
+              <div className="text-left">
+                <span className="text-slate-400 text-[10px] uppercase block">Your Match Result</span>
+                {potAmountNum > 0 ? (
+                  isMe ? (
+                    <span className="text-emerald-400 font-bold">
+                      +{payoutNum.toLocaleString()} $CRAZY8 Won (Net +{netProfitNum.toLocaleString()})
+                    </span>
+                  ) : (
+                    <span className="text-rose-400 font-bold">
+                      -{buyInNum.toLocaleString()} $CRAZY8 Stake Lost
+                    </span>
+                  )
+                ) : (
+                  <span className="text-slate-300 font-semibold">
+                    {isMe ? '🏆 Casual Match Victory (0 Stake)' : 'Casual Match (0 Stake)'}
+                  </span>
+                )}
+              </div>
+              {displayWalletBalance !== undefined && (
+                <div className="text-right">
+                  <span className="text-slate-400 text-[10px] uppercase block">Wallet Balance</span>
+                  <span className="text-amber-400 font-bold">
+                    🪙 {Number(displayWalletBalance).toLocaleString()} $CRAZY8
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 

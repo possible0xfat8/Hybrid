@@ -709,27 +709,40 @@ export class ServerDatabase {
     playerIds: string[],
     potAmount: string,
     cardsPlayedMap?: Record<string, number>,
-    roomCode?: string
+    roomCode?: string,
+    buyInPerPlayer?: number
   ): void {
     const potNum = parseFloat(potAmount) || 0;
     const cardsMap = cardsPlayedMap || {};
+    const cleanWinner = (winnerId || '').trim().toLowerCase();
 
     for (const pid of playerIds) {
       const user = this.data.users[pid] || (pid.startsWith('0x') ? this.getUserByAddress(pid) : null);
       if (!user) continue;
 
       user.stats.matchesPlayed += 1;
-      user.stats.cardsPlayed += (cardsMap[pid] || 0);
+      user.stats.cardsPlayed += (cardsMap[pid] || cardsMap[user.id] || 0);
 
-      if (pid === winnerId) {
+      const isWinner =
+        pid.trim().toLowerCase() === cleanWinner ||
+        user.id.trim().toLowerCase() === cleanWinner ||
+        Boolean(user.address && user.address.trim().toLowerCase() === cleanWinner) ||
+        Boolean(user.address && `wallet_${user.address.trim().toLowerCase()}` === cleanWinner);
+
+      if (isWinner) {
         user.stats.wins += 1;
         const currentWon = parseFloat(user.stats.totalWinnings || '0') || 0;
         user.stats.totalWinnings = (currentWon + potNum).toFixed(0);
       } else {
         user.stats.losses = (user.stats.losses || 0) + 1;
         const currentLost = parseFloat(user.stats.totalLosses || '0') || 0;
-        const approxLoss = playerIds.length > 0 ? Math.round(potNum / playerIds.length) : 100;
-        user.stats.totalLosses = (currentLost + approxLoss).toFixed(0);
+        const lossAmount =
+          typeof buyInPerPlayer === 'number' && buyInPerPlayer >= 0
+            ? buyInPerPlayer
+            : playerIds.length > 0
+            ? Math.round(potNum / playerIds.length)
+            : 0;
+        user.stats.totalLosses = (currentLost + lossAmount).toFixed(0);
       }
 
       const otherPlayers = playerIds

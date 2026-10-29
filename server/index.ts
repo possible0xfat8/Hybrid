@@ -8,52 +8,6 @@ import next from 'next';
 import { Server } from 'socket.io';
 import cors from 'cors';
 
-// Ensure all project files are mirrored to / so platform build/publish runners can find package.json
-let rootLinkStatus = 'init';
-try {
-  const currentDir = process.cwd();
-  console.log(`[LINK-ROOT] Current working directory: ${currentDir}`);
-
-  if (process.platform !== 'win32' && currentDir !== '/') {
-    const systemDirs = new Set([
-      'app', 'bin', 'boot', 'dev', 'etc', 'home', 'lib', 'lib64',
-      'media', 'mnt', 'opt', 'proc', 'root', 'run', 'sbin', 'srv',
-      'sys', 'tmp', 'usr', 'var', 'workspace'
-    ]);
-
-    const entries = fs.readdirSync(currentDir);
-    for (const entry of entries) {
-      if (systemDirs.has(entry)) continue;
-
-      const rootPath = path.join('/', entry);
-      const sourcePath = path.join(currentDir, entry);
-
-      try {
-        // Remove any stale or broken link/file at rootPath first
-        try {
-          fs.rmSync(rootPath, { force: true, recursive: true });
-        } catch {}
-
-        const stat = fs.statSync(sourcePath);
-        if (stat.isDirectory()) {
-          fs.symlinkSync(sourcePath, rootPath, 'dir');
-          console.log(`[LINK-ROOT] Symlinked directory: ${entry} -> ${rootPath}`);
-        } else {
-          fs.copyFileSync(sourcePath, rootPath);
-          console.log(`[LINK-ROOT] Copied file: ${entry} -> ${rootPath}`);
-        }
-      } catch (e: any) {
-        console.warn(`[LINK-ROOT] Failed for ${entry}:`, e.message);
-      }
-    }
-  }
-  rootLinkStatus = fs.existsSync('/package.json') ? 'package_json_exists' : 'package_json_missing';
-  console.log(`[LINK-ROOT] Root mirror status: ${rootLinkStatus}`);
-} catch (err: any) {
-  rootLinkStatus = `error: ${err.message}`;
-  console.warn('[LINK-ROOT] Could not mirror directory:', err.message);
-}
-
 import { ChessEngine } from './engine/chess/chessEngine';
 import { setupChessNamespace } from './engine/chess/chessNamespace';
 import { createChessRoutes } from './routes/chessRoutes';
@@ -68,23 +22,14 @@ import connect4Routes from './routes/connect4Routes';
 import { createArcadeRoutes } from './routes/arcadeRoutes';
 
 const PORT = parseInt(process.env.PORT || process.env.SERVER_PORT || '3000', 10);
-const isProd = process.env.NODE_ENV === 'production' || process.env.npm_lifecycle_event === 'start';
+const hasProdBuild = fs.existsSync(path.join(process.cwd(), '.next', 'BUILD_ID'));
+const isProd =
+  process.env.NODE_ENV === 'production' ||
+  process.env.npm_lifecycle_event === 'start' ||
+  hasProdBuild;
 const dev = !isProd;
 
 const isBackendOnly = process.env.BACKEND_ONLY === 'true';
-
-let handle: any = null;
-if (!isBackendOnly) {
-  // Initialize Next.js App
-  const nextApp = next({ dev, hostname: '0.0.0.0', port: PORT });
-  handle = nextApp.getRequestHandler();
-
-  console.log('[NEXT] Preparing Next.js application...');
-  await nextApp.prepare();
-  console.log('[NEXT] ✓ Next.js prepared and ready to serve pages');
-} else {
-  console.log('[BACKEND] Running in BACKEND_ONLY mode (dedicated real-time socket & API engine)');
-}
 
 const app = express();
 const server = http.createServer(app);
@@ -141,9 +86,7 @@ app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
     cwd: process.cwd(),
-    rootLinkStatus,
-    packageJsonAtRoot: fs.existsSync('/package.json'),
-    packageJsonAtCwd: fs.existsSync(path.join(process.cwd(), 'package.json')),
+    mode: dev ? 'development' : 'production',
     platform: 'Hybrid Unified Server',
     namespaces: ['/chess', '/uno', '/connect4'],
     activeChessGames: chessEngine.activeGames.size,
@@ -152,13 +95,22 @@ app.get('/health', (_req, res) => {
   });
 });
 
+let handle: any = null;
+
 // ==========================================
 // 5. NEXT.JS PAGES HANDLER (OR BACKEND STATUS ROOT)
 // ==========================================
-if (!isBackendOnly && handle) {
+if (!isBackendOnly) {
   app.all(/.*/, (req, res) => {
-    const parsedUrl = parse(req.url!, true);
-    handle(req, res, parsedUrl);
+    if (req.url && req.url.startsWith('/socket.io')) {
+      return;
+    }
+    if (handle) {
+      const parsedUrl = parse(req.url!, true);
+      handle(req, res, parsedUrl);
+    } else {
+      res.status(503).send('Initializing application...');
+    }
   });
 } else {
   app.get('/', (_req, res) => {
@@ -171,17 +123,53 @@ if (!isBackendOnly && handle) {
   });
 }
 
-// Start Server on PORT 3000 immediately
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n=================================================`);
-  console.log(`🚀 HYBRID UNIFIED SERVER LISTENING ON PORT ${PORT}`);
-  console.log(`🎮 Socket /chess namespace: ws://0.0.0.0:${PORT}/chess`);
-  console.log(`🃏 Socket /uno namespace:   ws://0.0.0.0:${PORT}/uno`);
-  console.log(`🔴 Socket /connect4:        ws://0.0.0.0:${PORT}/connect4`);
-  console.log(`🌐 API Gateway:            http://0.0.0.0:${PORT}/api/arcade`);
-  console.log(`⚡ Next.js Frontend:       http://0.0.0.0:${PORT}/`);
-  console.log(`📁 Root Link Status:       ${rootLinkStatus}`);
-  console.log(`=================================================\n`);
+async function bootstrap() {
+  if (!isBackendOnly) {
+    let standaloneConf: any = undefined;
+    const requiredServerFilesPath = path.join(process.cwd(), '.next', 'required-server-files.json');
+    if (!dev && fs.existsSync(requiredServerFilesPath)) {
+      try {
+        const requiredFiles = JSON.parse(fs.readFileSync(requiredServerFilesPath, 'utf8'));
+        if (requiredFiles?.config) {
+          standaloneConf = requiredFiles.config;
+          process.env.__NEXT_PRIVATE_STANDALONE_CONFIG = JSON.stringify(standaloneConf);
+        }
+      } catch (e: any) {
+        console.warn('[NEXT] Failed to read required-server-files.json:', e.message);
+      }
+    }
+
+    const nextApp = next({
+      dev,
+      dir: process.cwd(),
+      hostname: '0.0.0.0',
+      port: PORT,
+      ...(standaloneConf ? { conf: standaloneConf } : {}),
+    });
+    handle = nextApp.getRequestHandler();
+
+    console.log(`[NEXT] Preparing Next.js application (dev=${dev})...`);
+    await nextApp.prepare();
+    console.log('[NEXT] ✓ Next.js prepared and ready to serve pages');
+  } else {
+    console.log('[BACKEND] Running in BACKEND_ONLY mode (dedicated real-time socket & API engine)');
+  }
+
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n=================================================`);
+    console.log(`🚀 HYBRID UNIFIED SERVER LISTENING ON PORT ${PORT}`);
+    console.log(`🎮 Socket /chess namespace: ws://0.0.0.0:${PORT}/chess`);
+    console.log(`🃏 Socket /uno namespace:   ws://0.0.0.0:${PORT}/uno`);
+    console.log(`🔴 Socket /connect4:        ws://0.0.0.0:${PORT}/connect4`);
+    console.log(`🌐 API Gateway:            http://0.0.0.0:${PORT}/api/arcade`);
+    console.log(`⚡ Next.js Frontend:       http://0.0.0.0:${PORT}/`);
+    console.log(`=================================================\n`);
+  });
+}
+
+bootstrap().catch((err) => {
+  console.error('[SERVER] Fatal error during server bootstrap:', err);
+  process.exit(1);
 });
 
 export { app, server, io };

@@ -522,33 +522,8 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
           </div>
         </div>
 
-        {/* Pot & Staking Hub: Staking only active if NO bots are in the game */}
-        {hasBots ? (
-          <div className="mt-3 sm:mt-4 p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-slate-900/70 border border-slate-800 text-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-              <div className="flex items-center gap-2.5 sm:gap-3">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-lg shrink-0">
-                  🤖
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-slate-200 text-xs sm:text-sm">Non-Staking Casual Lobby</span>
-                    <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 font-mono font-bold border border-amber-500/20">
-                      🤖 Bots Seated • Staking Disabled
-                    </span>
-                  </div>
-                  <div className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5">
-                    Staking and token pots are disabled for matches with AI bots.
-                    {isHost ? ' Remove all bots from the table to enable pot configuration and token staking!' : ' Real players only for token staking.'}
-                  </div>
-                </div>
-              </div>
-              <span className="text-[10px] px-2.5 py-1 rounded-full bg-slate-800/90 text-slate-400 font-mono font-bold self-end sm:self-center border border-slate-700">
-                0 Stake (Free)
-              </span>
-            </div>
-          </div>
-        ) : isHost ? (
+        {/* Pot & Staking Hub: Host can configure stake whether playing with real players or Oracle-sponsored bots */}
+        {isHost ? (
           <div className="mt-3 sm:mt-4 p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-gradient-to-r from-amber-500/10 via-[#0B0F14] to-[#FF4600]/10 border border-amber-500/40 shadow-lg animate-in fade-in">
             {/* Header: Title + Pot Summary */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-white/[0.06]">
@@ -563,7 +538,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                       👑 Host Controls
                     </span>
                     <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold">
-                      Real Players Only
+                      {hasBots ? '⚡ Oracle-Sponsored Bot Stakes' : 'Real Players Only'}
                     </span>
                   </div>
                   <div className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5">

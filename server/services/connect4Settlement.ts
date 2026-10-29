@@ -1,5 +1,7 @@
 import { createPublicClient, createWalletClient, http, parseEther, formatEther, isAddress } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
+import fs from 'fs';
+import path from 'path';
 import connect4Abi from '../../src/lib/connect4/HemiConnect4EloABI.json' with { type: 'json' };
 
 const HEMI_SEPOLIA_CHAIN = {
@@ -44,6 +46,66 @@ export interface Connect4PlayerStats {
   bestStreak: number;
 }
 
+export interface Connect4MatchRecord {
+  gameId: string;
+  winner: string;
+  loser: string;
+  winEloDelta: number;
+  loseEloDelta: number;
+  timestamp: number;
+  txHash?: string;
+}
+
+const DB_DIR = path.join(process.cwd(), 'data');
+const C4_DB_FILE = path.join(DB_DIR, 'connect4_db.json');
+
+class LocalConnect4Store {
+  public players: Record<string, Connect4PlayerStats> = {};
+  public matches: Connect4MatchRecord[] = [];
+  private saveTimer: NodeJS.Timeout | null = null;
+
+  constructor() {
+    this.loadFromDisk();
+  }
+
+  private loadFromDisk() {
+    try {
+      if (!fs.existsSync(DB_DIR)) {
+        fs.mkdirSync(DB_DIR, { recursive: true });
+      }
+      if (fs.existsSync(C4_DB_FILE)) {
+        const raw = fs.readFileSync(C4_DB_FILE, 'utf-8');
+        if (raw.trim()) {
+          const parsed = JSON.parse(raw);
+          if (parsed.players) this.players = parsed.players;
+          if (Array.isArray(parsed.matches)) this.matches = parsed.matches;
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Database:CONNECT4] Load warning:', err.message);
+    }
+  }
+
+  public save() {
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => {
+      try {
+        if (!fs.existsSync(DB_DIR)) {
+          fs.mkdirSync(DB_DIR, { recursive: true });
+        }
+        fs.writeFileSync(
+          C4_DB_FILE,
+          JSON.stringify({ players: this.players, matches: this.matches }, null, 2),
+          'utf-8'
+        );
+      } catch (err: any) {
+        console.warn('[Database:CONNECT4] Save warning:', err.message);
+      }
+    }, 300);
+  }
+}
+
+const localC4Db = new LocalConnect4Store();
 const statsCache = new Map<string, { stats: Connect4PlayerStats; expiresAt: number }>();
 
 export async function getConnect4PlayerStats(address: string): Promise<Connect4PlayerStats> {
@@ -62,9 +124,11 @@ export async function getConnect4PlayerStats(address: string): Promise<Connect4P
   }
 
   const normalized = address.toLowerCase();
+  const localStats = localC4Db.players[normalized];
+
   const cached = statsCache.get(normalized);
   if (cached && cached.expiresAt > Date.now()) {
-    return cached.stats;
+    return localStats && localStats.totalGames >= cached.stats.totalGames ? localStats : cached.stats;
   }
 
   try {
@@ -82,9 +146,9 @@ export async function getConnect4PlayerStats(address: string): Promise<Connect4P
       timeoutPromise,
     ])) as [bigint, bigint, bigint, bigint, bigint, bigint, bigint];
 
-    const result: Connect4PlayerStats = {
+    const onChainResult: Connect4PlayerStats = {
       address,
-      elo: Math.round(Number(formatEther(data[0]))),
+      elo: Math.round(Number(formatEther(data[0]))) || 1200,
       wins: Number(data[1]),
       losses: Number(data[2]),
       totalGames: Number(data[3]),
@@ -92,10 +156,19 @@ export async function getConnect4PlayerStats(address: string): Promise<Connect4P
       bestStreak: Number(data[5]),
     };
 
-    statsCache.set(normalized, { stats: result, expiresAt: Date.now() + 60_000 });
-    return result;
+    const merged: Connect4PlayerStats =
+      localStats && localStats.totalGames > onChainResult.totalGames
+        ? localStats
+        : onChainResult;
+
+    localC4Db.players[normalized] = merged;
+    localC4Db.save();
+    statsCache.set(normalized, { stats: merged, expiresAt: Date.now() + 60_000 });
+    return merged;
   } catch (error) {
-    console.warn(`[Connect4Settlement] Using default stats for ${address} (RPC notice: ${(error as any)?.message || error})`);
+    if (localStats) {
+      return localStats;
+    }
     return defaultStats;
   }
 }
@@ -109,6 +182,67 @@ export function calculateConnect4EloDelta(winnerElo: number, loserElo: number): 
   const loseDelta = Math.max(8, Math.min(48, Math.round(K * (0 - expectedLoser) * -1)));
 
   return { winDelta, loseDelta };
+}
+
+function recordLocalConnect4Match(params: {
+  gameId: string;
+  winnerAddress: string;
+  loserAddress?: string;
+  winDelta: number;
+  loseDelta: number;
+  txHash?: string;
+}) {
+  const winAddr = params.winnerAddress.toLowerCase();
+  const loseAddr = params.loserAddress?.toLowerCase();
+
+  if (isAddress(winAddr)) {
+    const cur = localC4Db.players[winAddr] || {
+      address: params.winnerAddress,
+      elo: 1200,
+      wins: 0,
+      losses: 0,
+      totalGames: 0,
+      currentStreak: 0,
+      bestStreak: 0,
+    };
+    cur.elo = Math.max(800, cur.elo + params.winDelta);
+    cur.wins += 1;
+    cur.totalGames += 1;
+    cur.currentStreak += 1;
+    cur.bestStreak = Math.max(cur.bestStreak, cur.currentStreak);
+    localC4Db.players[winAddr] = cur;
+    statsCache.set(winAddr, { stats: cur, expiresAt: Date.now() + 60_000 });
+  }
+
+  if (loseAddr && isAddress(loseAddr) && !loseAddr.includes('000000000000b075')) {
+    const cur = localC4Db.players[loseAddr] || {
+      address: params.loserAddress!,
+      elo: 1200,
+      wins: 0,
+      losses: 0,
+      totalGames: 0,
+      currentStreak: 0,
+      bestStreak: 0,
+    };
+    cur.elo = Math.max(800, cur.elo - params.loseDelta);
+    cur.losses += 1;
+    cur.totalGames += 1;
+    cur.currentStreak = 0;
+    localC4Db.players[loseAddr] = cur;
+    statsCache.set(loseAddr, { stats: cur, expiresAt: Date.now() + 60_000 });
+  }
+
+  localC4Db.matches.unshift({
+    gameId: params.gameId,
+    winner: params.winnerAddress,
+    loser: params.loserAddress || '0x000000000000000000000000000000000000B075',
+    winEloDelta: params.winDelta,
+    loseEloDelta: params.loseDelta,
+    timestamp: Date.now(),
+    txHash: params.txHash,
+  });
+  localC4Db.matches = localC4Db.matches.slice(0, 100);
+  localC4Db.save();
 }
 
 /**
@@ -139,12 +273,7 @@ export async function adjustConnect4EloOnChain(
 }
 
 /**
- * On-chain match settlement for Connect 4 on Hemi Sepolia.
- * Matches Hemi Chess methodology:
- * 1. Checks valid EVM address and calculates ELO delta.
- * 2. If human 1v1 duel, attempts recordMatch on-chain.
- * 3. If recordMatch fails or duel is vs Bot, falls back to direct adjustElo disbursement (Chess pattern).
- * 4. Broadcasts transaction immediately without blocking for block confirmation.
+ * On-chain match settlement for Connect 4 on Hemi Sepolia + immediate local disk persistence.
  */
 export async function settleConnect4MatchOnChain(params: {
   gameId: string;
@@ -153,15 +282,24 @@ export async function settleConnect4MatchOnChain(params: {
   winDelta?: number;
   loseDelta?: number;
 }): Promise<{ success: boolean; txHash?: string; error?: string }> {
-  try {
-    const { gameId, winnerAddress, loserAddress } = params;
+  const { gameId, winnerAddress, loserAddress } = params;
+  const winDeltaPoints = params.winDelta || 16;
+  const loseDeltaPoints = params.loseDelta || 16;
 
+  // Always persist immediately to local disk store
+  recordLocalConnect4Match({
+    gameId,
+    winnerAddress,
+    loserAddress,
+    winDelta: winDeltaPoints,
+    loseDelta: loseDeltaPoints,
+  });
+
+  try {
     if (!isAddress(winnerAddress)) {
       return { success: false, error: 'Invalid winner Ethereum address for match settlement' };
     }
 
-    const winDeltaPoints = params.winDelta || 16;
-    const loseDeltaPoints = params.loseDelta || 16;
     const winWei = parseEther(winDeltaPoints.toString());
     const loseWei = parseEther(loseDeltaPoints.toString());
 
@@ -170,18 +308,15 @@ export async function settleConnect4MatchOnChain(params: {
     // 1. Try recordMatch if both are valid, distinct, human on-chain addresses
     const isHumanDuel = Boolean(
       loserAddress &&
-      isAddress(loserAddress) &&
-      loserAddress.toLowerCase() !== winnerAddress.toLowerCase() &&
-      !loserAddress.toLowerCase().includes('bot') &&
-      loserAddress !== '0x000000000000000000000000000000000000B075'
+        isAddress(loserAddress) &&
+        loserAddress.toLowerCase() !== winnerAddress.toLowerCase() &&
+        !loserAddress.toLowerCase().includes('bot') &&
+        loserAddress !== '0x000000000000000000000000000000000000B075'
     );
 
     if (isHumanDuel && loserAddress) {
       try {
         console.log(`[Connect4Settlement] Settling 1v1 match ${gameId} via recordMatch on Hemi Sepolia:`);
-        console.log(`Winner: ${winnerAddress} (+${winDeltaPoints} ELO)`);
-        console.log(`Loser:  ${loserAddress} (-${loseDeltaPoints} ELO)`);
-
         const hash = await walletClient.writeContract({
           address: CONTRACT_ADDRESS,
           abi: connect4Abi,
@@ -192,7 +327,7 @@ export async function settleConnect4MatchOnChain(params: {
         console.log(`[Connect4Settlement] Settlement tx sent: ${hash}`);
         return { success: true, txHash: hash };
       } catch (recordErr: any) {
-        console.warn(`[Connect4Settlement] recordMatch notice (${recordErr.message}), falling back to direct adjustElo (Chess pattern)...`);
+        console.warn(`[Connect4Settlement] recordMatch notice (${recordErr.message}), falling back to direct adjustElo...`);
       }
     }
 
@@ -215,12 +350,12 @@ export async function settleConnect4MatchOnChain(params: {
 
 export async function getRecentConnect4Matches(limit = 10) {
   try {
-    const records = await publicClient.readContract({
+    const records = (await publicClient.readContract({
       address: CONTRACT_ADDRESS,
       abi: connect4Abi,
       functionName: 'getRecentMatches',
       args: [BigInt(limit)],
-    }) as Array<{
+    })) as Array<{
       gameId: string;
       winner: string;
       loser: string;
@@ -229,7 +364,7 @@ export async function getRecentConnect4Matches(limit = 10) {
       timestamp: bigint;
     }>;
 
-    return records.map((r) => ({
+    const onChainMatches = records.map((r) => ({
       gameId: r.gameId,
       winner: r.winner,
       loser: r.loser,
@@ -237,8 +372,19 @@ export async function getRecentConnect4Matches(limit = 10) {
       loseEloDelta: Math.round(Number(formatEther(r.loseEloDelta))),
       timestamp: Number(r.timestamp) * 1000,
     }));
+
+    if (onChainMatches.length >= limit) {
+      return onChainMatches;
+    }
+
+    const seenIds = new Set(onChainMatches.map((m) => m.gameId));
+    const combined = [
+      ...onChainMatches,
+      ...localC4Db.matches.filter((m) => !seenIds.has(m.gameId)),
+    ];
+    return combined.slice(0, limit);
   } catch (error) {
-    console.error('[Connect4Settlement] Failed to read recent matches:', error);
-    return [];
+    return localC4Db.matches.slice(0, limit);
   }
 }
+

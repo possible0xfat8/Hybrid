@@ -54,6 +54,17 @@ function isErrorLike(value: unknown): value is Error {
 // recorded for consumeLastCapturedError and expanded before serialization.
 const originalConsoleError = console.error.bind(console);
 console.error = (...args: unknown[]) => {
+  const rawText = args
+    .map((a) => (typeof a === "string" ? a : a instanceof Error ? a.message : safeStringify(a)))
+    .join(" ");
+  if (
+    rawText.includes("AnalyticsSDKApiError") ||
+    rawText.includes("Analytics SDK:") ||
+    rawText.includes("Cannot redefine property") ||
+    rawText.includes("isZerion")
+  ) {
+    return;
+  }
   const expanded = args.map((arg) => {
     if (!isErrorLike(arg)) return arg;
     record(arg);
@@ -63,10 +74,24 @@ console.error = (...args: unknown[]) => {
 };
 
 if (typeof globalThis.addEventListener === "function") {
-  globalThis.addEventListener("error", (event) => record((event as ErrorEvent).error ?? event));
-  globalThis.addEventListener("unhandledrejection", (event) =>
-    record((event as PromiseRejectionEvent).reason),
-  );
+  globalThis.addEventListener("error", (event) => {
+    const err = (event as ErrorEvent).error ?? event;
+    const msg = String((event as ErrorEvent).message || (err as any)?.message || "");
+    if (msg.includes("Cannot redefine property") || msg.includes("isZerion")) return;
+    record(err);
+  });
+  globalThis.addEventListener("unhandledrejection", (event) => {
+    const reason = (event as PromiseRejectionEvent).reason;
+    const msg = String(reason?.message || reason || "");
+    if (
+      msg.includes("Cannot redefine property") ||
+      msg.includes("isZerion") ||
+      msg.includes("AnalyticsSDKApiError")
+    ) {
+      return;
+    }
+    record(reason);
+  });
 }
 
 export function consumeLastCapturedError(): unknown {

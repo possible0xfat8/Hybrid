@@ -2,8 +2,9 @@ import { Router, Request, Response } from 'express';
 import { RoomManager } from '../engine/uno/roomManager';
 import { serverDb } from '../engine/uno/database';
 import { fetchOnChainBalance, getTokenAddress, dispenseAirdrop } from '../services/uno/tokenService';
-import { getEscrowAddress } from '../services/uno/escrowService';
-import { uploadAvatarToR2, isR2Configured } from '../services/shared/r2Storage';
+import { getEscrowAddress, getEscrowGameDetailsOnChain } from '../services/uno/escrowService';
+import { uploadAvatarToR2 } from '../services/shared/r2Storage';
+import { upsertChessPlayer, updateChessPlayerAvatar } from '../services/chess/supabaseChess';
 
 export function createUnoRoutes(roomManager: RoomManager): Router {
   const router = Router();
@@ -26,6 +27,12 @@ export function createUnoRoutes(roomManager: RoomManager): Router {
     res.json({ rooms: roomManager.getPublicRooms() });
   });
 
+  router.get('/players/discover', (req: Request, res: Response) => {
+    const userId = (req.query.userId as string) || '';
+    const suggested = serverDb.getSuggestedPlayers(userId);
+    res.json({ players: suggested });
+  });
+
   // REST: User Profile endpoints
   router.get('/profile/by-address/:address', (req: Request, res: Response) => {
     const address = req.params.address;
@@ -44,26 +51,25 @@ export function createUnoRoutes(roomManager: RoomManager): Router {
     res.json(user);
   });
 
-  router.post('/profile', (req: Request, res: Response) => {
+  router.post('/profile', async (req: Request, res: Response) => {
     const { id, accountId, name, avatar, bio, address } = req.body;
     const targetId = id || accountId;
     if (!targetId && !address) {
       return res.status(400).json({ error: 'User id or wallet address is required' });
     }
     const updated = serverDb.updateUserProfile(targetId || '', { name, avatar, bio, address });
+    if (updated?.address) {
+      await upsertChessPlayer(updated.address, updated.name, updated.avatar);
+    }
     res.json(updated);
   });
 
-  // REST: Upload profile picture
+  // REST: Upload profile picture (uses R2 if configured, or built-in local storage)
   router.post('/profile/upload-avatar', async (req: Request, res: Response) => {
     try {
       const { address, accountId, image, contentType } = req.body;
       if (!image) {
         return res.status(400).json({ error: 'Image data is required' });
-      }
-
-      if (!isR2Configured()) {
-        return res.status(503).json({ error: 'Cloudflare R2 storage is not configured' });
       }
 
       let mimeType = contentType || 'image/png';
@@ -94,12 +100,16 @@ export function createUnoRoutes(roomManager: RoomManager): Router {
           address: cleanAddr,
         });
       }
+      if (cleanAddr) {
+        await updateChessPlayerAvatar(cleanAddr, avatarUrl);
+      }
 
       res.json({ success: true, avatarUrl, user: updatedUser });
     } catch (err: any) {
       res.status(500).json({ error: err.message || 'Server error uploading avatar' });
     }
   });
+
 
   // REST: Token info & balance
   router.get('/token/info', (_req: Request, res: Response) => {
@@ -129,8 +139,20 @@ export function createUnoRoutes(roomManager: RoomManager): Router {
       serverUser?.notifications?.some((n) => n.type === 'airdrop_claimed')
     );
 
+    if (data.hasClaimed && serverUser && !serverUser.hasClaimedAirdrop) {
+      serverUser.hasClaimedAirdrop = true;
+      serverDb.save();
+    }
+
     let balance = data.balance;
-    if ((!balance || balance === '0' || balance === '0.0') && serverUser && typeof serverUser.tokenBalance === 'number') {
+    // Authoritative in-game chip balance from serverDb when player has claimed or played matches
+    if (
+      serverUser &&
+      typeof serverUser.tokenBalance === 'number' &&
+      (hasClaimed || (serverUser.stats?.matchesPlayed || 0) > 0 || serverUser.tokenBalance !== 10000)
+    ) {
+      balance = serverUser.tokenBalance.toString();
+    } else if ((!balance || balance === '0' || balance === '0.0') && serverUser && typeof serverUser.tokenBalance === 'number') {
       balance = serverUser.tokenBalance.toString();
     }
 
@@ -139,6 +161,7 @@ export function createUnoRoutes(roomManager: RoomManager): Router {
     res.json({
       address: cleanAddr,
       balance: balance || '0',
+      onChainBalance: data.onChainBalance || data.balance || '0',
       hasClaimed,
       eligible,
     });
@@ -167,10 +190,17 @@ export function createUnoRoutes(roomManager: RoomManager): Router {
       });
     }
 
+    const computeNewAirdropBalance = () => {
+      if (serverUser && (serverUser.stats?.matchesPlayed || 0) > 0) {
+        return (serverUser.tokenBalance || 0) + 10000;
+      }
+      return 10000;
+    };
+
     try {
       const result = await dispenseAirdrop(cleanAddr);
       if (result.success) {
-        const newBal = (serverUser?.tokenBalance || 0) + 10000;
+        const newBal = computeNewAirdropBalance();
         serverDb.upsertUser({
           id: `wallet_${cleanAddr}`,
           address: cleanAddr,
@@ -193,7 +223,7 @@ export function createUnoRoutes(roomManager: RoomManager): Router {
     } catch {}
 
     // Fallback in-memory grant if testnet RPC is busy
-    const newBal = (serverUser?.tokenBalance || 0) + 10000;
+    const newBal = computeNewAirdropBalance();
     serverDb.upsertUser({
       id: `wallet_${cleanAddr}`,
       address: cleanAddr,
@@ -252,8 +282,14 @@ export function createUnoRoutes(roomManager: RoomManager): Router {
     res.json({
       address: getEscrowAddress(),
       network: 'Hemi Sepolia (743111)',
-      feePercent: '0%',
+      feePercent: '5%',
     });
+  });
+
+  router.get('/escrow/game/:roomCode', async (req: Request, res: Response) => {
+    const { roomCode } = req.params;
+    const details = await getEscrowGameDetailsOnChain(roomCode || 'CLSC');
+    res.json(details);
   });
 
   router.get('/leaderboard', (req: Request, res: Response) => {

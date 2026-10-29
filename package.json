@@ -9,8 +9,8 @@
     "dev:server": "tsx server/index.ts",
     "build": "node scripts/build.js",
     "build:server": "echo 'Backend build ready'",
-    "start": "npx tsx server/index.ts",
-    "start:server": "npx tsx server/index.ts",
+    "start": "node server.ts",
+    "start:server": "node server.ts",
     "lint": "next lint"
   },
   "dependencies": {

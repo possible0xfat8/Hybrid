@@ -1,25 +1,31 @@
 import { io, Socket } from 'socket.io-client';
 
-function getSocketBaseUrl(): string {
-  const configured = (
-    process.env.NEXT_PUBLIC_SOCKET_URL ||
-    process.env.NEXT_PUBLIC_BACKEND_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    ''
-  ).trim();
-
-  if (configured && configured.length > 0) {
-    return configured.replace(/\/+$/, '');
-  }
-
+export function getSocketBaseUrl(): string {
   if (typeof window !== 'undefined') {
+    const configured = (
+      process.env.NEXT_PUBLIC_SOCKET_URL ||
+      process.env.NEXT_PUBLIC_BACKEND_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      ''
+    ).trim();
+
+    // If an external backend URL is explicitly configured (not localhost/127.0.0.1), use it
+    if (
+      configured &&
+      configured.length > 0 &&
+      !configured.includes('localhost') &&
+      !configured.includes('127.0.0.1')
+    ) {
+      return configured.replace(/\/+$/, '');
+    }
+
+    // Always use the browser's current origin so HTTPS and Cloud Run work seamlessly
     return window.location.origin;
   }
 
-  return 'http://localhost:3000';
+  const port = process.env.PORT || process.env.SERVER_PORT || '3000';
+  return `http://127.0.0.1:${port}`;
 }
-
-const BACKEND_URL = getSocketBaseUrl();
 
 // Isolated socket singletons
 let chessSocket: Socket | null = null;
@@ -35,7 +41,8 @@ export function getChessSocket(): Socket {
   }
 
   if (!chessSocket) {
-    const namespaceUrl = `${BACKEND_URL.replace(/\/+$/, '')}/chess`;
+    const baseUrl = getSocketBaseUrl();
+    const namespaceUrl = `${baseUrl.replace(/\/+$/, '')}/chess`;
     console.log('[SOCKET:CHESS] Initializing namespace connection to:', namespaceUrl);
 
     chessSocket = io(namespaceUrl, {
@@ -44,7 +51,7 @@ export function getChessSocket(): Socket {
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      timeout: 10000,
+      timeout: 15000,
       transports: ['websocket', 'polling'],
     });
 
@@ -59,6 +66,8 @@ export function getChessSocket(): Socket {
     chessSocket.on('connect_error', (error) => {
       console.warn('[SOCKET:CHESS] Connection error:', error.message);
     });
+  } else if (!chessSocket.connected && chessSocket.disconnected) {
+    chessSocket.connect();
   }
 
   return chessSocket;
@@ -81,7 +90,8 @@ export function getUnoSocket(): Socket {
   }
 
   if (!unoSocket) {
-    const namespaceUrl = `${BACKEND_URL.replace(/\/+$/, '')}/uno`;
+    const baseUrl = getSocketBaseUrl();
+    const namespaceUrl = `${baseUrl.replace(/\/+$/, '')}/uno`;
     console.log('[SOCKET:UNO] Initializing namespace connection to:', namespaceUrl);
 
     unoSocket = io(namespaceUrl, {
@@ -90,7 +100,7 @@ export function getUnoSocket(): Socket {
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      timeout: 10000,
+      timeout: 15000,
       transports: ['websocket', 'polling'],
     });
 
@@ -105,6 +115,8 @@ export function getUnoSocket(): Socket {
     unoSocket.on('connect_error', (error) => {
       console.warn('[SOCKET:UNO] Connection error:', error.message);
     });
+  } else if (!unoSocket.connected && unoSocket.disconnected) {
+    unoSocket.connect();
   }
 
   return unoSocket;
@@ -127,7 +139,8 @@ export function getConnect4Socket(): Socket {
   }
 
   if (!connect4Socket) {
-    const namespaceUrl = `${BACKEND_URL.replace(/\/+$/, '')}/connect4`;
+    const baseUrl = getSocketBaseUrl();
+    const namespaceUrl = `${baseUrl.replace(/\/+$/, '')}/connect4`;
     console.log('[SOCKET:CONNECT4] Initializing namespace connection to:', namespaceUrl);
 
     connect4Socket = io(namespaceUrl, {
@@ -136,7 +149,7 @@ export function getConnect4Socket(): Socket {
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      timeout: 10000,
+      timeout: 15000,
       transports: ['websocket', 'polling'],
     });
 
@@ -151,6 +164,8 @@ export function getConnect4Socket(): Socket {
     connect4Socket.on('connect_error', (error) => {
       console.warn('[SOCKET:CONNECT4] Connection error:', error.message);
     });
+  } else if (!connect4Socket.connected && connect4Socket.disconnected) {
+    connect4Socket.connect();
   }
 
   return connect4Socket;

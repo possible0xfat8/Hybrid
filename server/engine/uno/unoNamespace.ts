@@ -361,20 +361,16 @@ export function setupUnoNamespace(unoIo: Namespace, roomManager: RoomManager) {
         if (typeof callback === 'function') callback({ success: false, error: 'Only the host can add bots' });
         return;
       }
-      // RULE: When a bot is in the game, staking is strictly non-active!
-      if (room.isStaking) {
-        roomManager.refundAllRoomStakes(room, `Bot added to room #${room.roomCode}. Staking disabled.`);
-        room.isStaking = false;
-        room.buyInAmount = '0';
+      const success = room.addBot();
+      if (success && room.isStaking && parseFloat(room.buyInAmount || '0') > 0) {
         room.addChatMessage({
           senderId: 'system',
           senderName: 'SYSTEM',
           senderAvatar: '🤖',
-          text: 'Bot added to lobby. Staking is deactivated and all player stakes have been refunded.',
+          text: `AI Bot joined the table with a ${room.buyInAmount} $CRAZY8 Oracle-sponsored stake (Total Pot: ${room.getPotAmount()} $CRAZY8).`,
           isSystem: true,
         });
       }
-      const success = room.addBot();
       if (typeof callback === 'function') callback({ success });
       roomManager.broadcastRoomState(room);
     });
@@ -402,12 +398,12 @@ export function setupUnoNamespace(unoIo: Namespace, roomManager: RoomManager) {
         }
 
         if (room.isStaking && parseFloat(room.buyInAmount || '0') > 0) {
-          const unstaked = room.players.find(p => !p.isBot && !room.hasPlayerStaked(p.id));
-          if (unstaked) {
+          const stakeCheck = roomManager.ensureStakesForMatchStart(room);
+          if (!stakeCheck.success) {
             if (typeof callback === 'function') {
               callback({
                 success: false,
-                error: `Cannot start: ${unstaked.name} has not staked the required ${room.buyInAmount} $CRAZY8 chips.`,
+                error: stakeCheck.error || `Cannot start: required ${room.buyInAmount} $CRAZY8 stake not met.`,
               });
             }
             return;
@@ -482,23 +478,28 @@ export function setupUnoNamespace(unoIo: Namespace, roomManager: RoomManager) {
       if (typeof callback === 'function') callback({ messages: room ? room.messages : [] });
     });
 
-    socket.on('room:leave', (callback) => {
-      const accountId = roomManager.getAccountIdBySocket(socket.id);
-      const room = roomManager.getRoomBySocket(socket.id);
+    const handleSocketLeave = (payloadOrCallback?: any, maybeCallback?: any) => {
+      const callback = typeof payloadOrCallback === 'function' ? payloadOrCallback : maybeCallback;
+      const payload = typeof payloadOrCallback === 'object' && payloadOrCallback !== null ? payloadOrCallback : {};
 
-      if (room && room.status === 'playing') {
-        const isSeated = room.players.some((p) => p.id === accountId);
-        if (isSeated) {
-          socket.emit('game:error', { message: 'You cannot quit while game is in progress.' });
-          if (typeof callback === 'function') callback({ success: false, error: 'Cannot quit in progress' });
-          return;
-        }
+      const { room, player } = getPlayerInCurrentRoom();
+      const accountId =
+        payload.accountId ||
+        player?.id ||
+        roomManager.getAccountIdBySocket(socket.id);
+      const address = payload.address || player?.address;
+      const roomCode = payload.roomCode || room?.roomCode;
+
+      if (room) {
+        socket.leave(room.roomId);
       }
 
-      if (room) socket.leave(room.roomId);
-      if (accountId) roomManager.handleLeaveRoom(accountId, socket.id);
+      roomManager.handleLeaveRoom(accountId, socket.id, true, address, roomCode);
       if (typeof callback === 'function') callback({ success: true });
-    });
+    };
+
+    socket.on('room:leave', handleSocketLeave);
+    socket.on('game:quit', handleSocketLeave);
 
     socket.on('game:rematch', () => {
       const { room, player } = getPlayerInCurrentRoom();

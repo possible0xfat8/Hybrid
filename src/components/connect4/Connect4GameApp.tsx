@@ -15,6 +15,10 @@ import {
 } from '@/lib/connect4/localConnect4Engine';
 import { WalletConnect } from '@/components/shared/WalletConnect';
 import { UserProfileModal, UserProfileTarget } from '@/components/shared/UserProfileModal';
+import {
+  getOrCreateAccountProfile,
+  syncAccountWithServerProfile,
+} from '@/lib/uno/account';
 import { toast } from 'sonner';
 import {
   Trophy,
@@ -110,9 +114,50 @@ export default function Connect4GameApp() {
   const [secondsRemaining, setSecondsRemaining] = useState(20);
   const [isGameOverMinimized, setIsGameOverMinimized] = useState(false);
   const [inspectProfile, setInspectProfile] = useState<UserProfileTarget | null>(null);
+  const [profileName, setProfileName] = useState<string | null>(null);
+  const [profileAvatar, setProfileAvatar] = useState<string>('🦊');
   const isLocalMatchRef = useRef<boolean>(false);
 
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
+
+  // Sync player's unified profile (name & avatar) for the connected wallet
+  useEffect(() => {
+    if (!isConnected || !userAddress) {
+      setProfileName(null);
+      setProfileAvatar('🦊');
+      return;
+    }
+    const cleanAddr = userAddress.trim().toLowerCase();
+    const cached = getOrCreateAccountProfile(cleanAddr);
+    if (cached) {
+      setProfileName(cached.name);
+      if (cached.avatar) setProfileAvatar(cached.avatar);
+    }
+
+    let cancelled = false;
+    fetch(`/api/profile/by-address/${encodeURIComponent(cleanAddr)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((dbUser) => {
+        if (dbUser && dbUser.id && !cancelled) {
+          const synced = syncAccountWithServerProfile(dbUser);
+          if (synced) {
+            setProfileName(synced.name);
+            if (synced.avatar) setProfileAvatar(synced.avatar);
+          }
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isConnected, userAddress]);
+
+  const effectiveDisplayName = useMemo(() => {
+    if (!userAddress) return 'Wallet Disconnected';
+    if (profileName && profileName.trim().length > 0) return profileName;
+    return `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`;
+  }, [userAddress, profileName]);
 
   // Initialize Socket.io Connection
   useEffect(() => {
@@ -326,8 +371,8 @@ export default function Connect4GameApp() {
     setMatchmakingSearching(true);
     socket.emit('join_matchmaking', {
       address: userAddress,
-      displayName: `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`,
-      avatar: '🦊',
+      displayName: effectiveDisplayName,
+      avatar: profileAvatar || '🦊',
     });
   };
 
@@ -353,7 +398,13 @@ export default function Connect4GameApp() {
 
     const launchLocal = () => {
       isLocalMatchRef.current = true;
-      const localRoom = createLocalConnect4Room(userAddress, undefined, '🦊', 'Hemi Bot ⚡', '🤖');
+      const localRoom = createLocalConnect4Room(
+        userAddress,
+        effectiveDisplayName,
+        profileAvatar || '🦊',
+        'Hemi Bot ⚡',
+        '🤖'
+      );
       setRoomState(localRoom);
       setMatchmakingSearching(false);
       c4Audio.playDrop();
@@ -370,8 +421,8 @@ export default function Connect4GameApp() {
 
       socket.emit('play_vs_bot', {
         address: userAddress,
-        displayName: `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`,
-        avatar: '🦊',
+        displayName: effectiveDisplayName,
+        avatar: profileAvatar || '🦊',
       });
     } else {
       launchLocal();
@@ -390,8 +441,8 @@ export default function Connect4GameApp() {
     c4Audio.playClick();
     socket.emit('create_room', {
       address: userAddress,
-      displayName: `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`,
-      avatar: '🦊',
+      displayName: effectiveDisplayName,
+      avatar: profileAvatar || '🦊',
     });
   };
 
@@ -410,8 +461,8 @@ export default function Connect4GameApp() {
     socket.emit('join_room', {
       roomCode: joinCodeInput.trim(),
       address: userAddress,
-      displayName: `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`,
-      avatar: '⚡',
+      displayName: effectiveDisplayName,
+      avatar: profileAvatar || '⚡',
     });
   };
 
@@ -716,15 +767,28 @@ export default function Connect4GameApp() {
                   <div className="w-full md:w-auto min-w-[280px] p-5 rounded-2xl bg-black/40 border border-[#FF4600]/25 backdrop-blur-xl shadow-xl flex flex-col gap-4">
                     <div className="flex items-center justify-between pb-3 border-b border-white/10">
                       <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-[#FF4600]/20 border border-[#FF4600]/40 flex items-center justify-center text-sm">
-                          🦊
+                        <div className="w-8 h-8 rounded-lg bg-[#FF4600]/20 border border-[#FF4600]/40 flex items-center justify-center text-sm overflow-hidden">
+                          {profileAvatar &&
+                          (profileAvatar.startsWith('http') ||
+                            profileAvatar.startsWith('/') ||
+                            profileAvatar.startsWith('data:')) ? (
+                            <img
+                              src={profileAvatar}
+                              alt={effectiveDisplayName}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            profileAvatar || '🦊'
+                          )}
                         </div>
                         <div>
                           <div className="text-xs font-bold text-white">
-                            {userAddress ? `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}` : 'Wallet Disconnected'}
+                            {isConnected && userAddress ? effectiveDisplayName : 'Wallet Disconnected'}
                           </div>
                           <div className="text-[10px] font-mono text-slate-400">
-                            {isConnected ? 'Wallet Connected' : 'Connect Wallet to Play'}
+                            {isConnected && userAddress
+                              ? `${userAddress.slice(0, 6)}...${userAddress.slice(-4)}`
+                              : 'Connect Wallet to Play'}
                           </div>
                         </div>
                       </div>

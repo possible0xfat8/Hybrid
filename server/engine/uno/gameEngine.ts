@@ -188,16 +188,14 @@ export class GameRoom {
   }
 
   public getPotAmount(): number {
-    if (!this.isStaking || parseFloat(this.buyInAmount || '0') <= 0) return 0;
+    const buyIn = parseFloat(this.buyInAmount || '0');
+    if (!this.isStaking || buyIn <= 0) return 0;
     let total = 0;
     for (const stake of this.playerStakes.values()) {
       total += stake;
     }
-    // Fallback if players are present but stakes haven't been individually mapped
-    if (total === 0 && this.players.length > 0) {
-      total = this.players.length * parseFloat(this.buyInAmount || '0');
-    }
-    return total;
+    const expectedTotal = this.players.length * buyIn;
+    return Math.max(total, expectedTotal);
   }
 
   private turnInterval: NodeJS.Timeout | null = null;
@@ -264,8 +262,22 @@ export class GameRoom {
     }
   }
 
+  public isSamePlayer(p: Player | null | undefined, identifier?: string | null): boolean {
+    if (!p || !identifier) return false;
+    const clean = identifier.trim().toLowerCase();
+    if (!clean) return false;
+    if (p.id && p.id.trim().toLowerCase() === clean) return true;
+    if (p.socketId && p.socketId === identifier.trim()) return true;
+    if (p.address) {
+      const pAddr = p.address.trim().toLowerCase();
+      if (pAddr === clean || `wallet_${pAddr}` === clean) return true;
+      if (clean.startsWith('wallet_') && pAddr === clean.replace('wallet_', '')) return true;
+    }
+    return false;
+  }
+
   public getPlayer(playerId: string): Player | null {
-    return this.players.find(p => p.id === playerId) || null;
+    return this.players.find(p => this.isSamePlayer(p, playerId)) || null;
   }
 
   public getPlayerBySocket(socketId: string): Player | null {
@@ -304,7 +316,7 @@ export class GameRoom {
 
   public addPlayer(player: Omit<Player, 'seatIndex' | 'cardCount' | 'hand' | 'isReady'>): Player | null {
     // Check if player already exists in this room (reconnection support)
-    const existing = this.players.find(p => p.id === player.id);
+    const existing = this.players.find(p => this.isSamePlayer(p, player.id) || (player.address && this.isSamePlayer(p, player.address)));
     if (existing) {
       existing.isConnected = true;
       if (player.socketId) existing.socketId = player.socketId;
@@ -356,11 +368,9 @@ export class GameRoom {
       this.hostId = newPlayer.id;
     }
 
-    if (newPlayer.isBot) {
-      // RULE: When a bot is in the game, staking is strictly non-active!
-      this.isStaking = false;
-      this.buyInAmount = '0';
-      this.clearStakes();
+    if (newPlayer.isBot && this.isStaking && parseFloat(this.buyInAmount || '0') > 0) {
+      // Bots seated at a staked table receive a house-sponsored stake from the Oracle pool
+      this.playerStakes.set(newPlayer.id, parseFloat(this.buyInAmount || '0'));
     }
 
     this.players.push(newPlayer);
@@ -369,12 +379,14 @@ export class GameRoom {
   }
 
   public removePlayer(playerId: string): void {
-    const pIndex = this.players.findIndex(p => p.id === playerId);
+    const pIndex = this.players.findIndex(p => this.isSamePlayer(p, playerId));
     if (pIndex === -1) return;
 
     const removed = this.players[pIndex];
+    const wasCurrentTurn = pIndex === this.currentTurnIndex;
     this.players.splice(pIndex, 1);
-    if (this.status === 'lobby') {
+    this.removeStake(removed.id);
+    if (removed.id !== playerId) {
       this.removeStake(playerId);
     }
 
@@ -384,7 +396,8 @@ export class GameRoom {
     });
 
     // If host left, reassign host to the first real human player, otherwise first bot
-    if (removed.isHost && this.players.length > 0) {
+    if ((removed.isHost || this.hostId === removed.id) && this.players.length > 0) {
+      this.players.forEach(p => { p.isHost = false; });
       const nextHuman = this.players.find(p => !p.isBot);
       const newHost = nextHuman || this.players[0];
       newHost.isHost = true;
@@ -392,6 +405,13 @@ export class GameRoom {
     }
 
     if (this.status === 'playing') {
+      const remainingHumans = this.players.filter(p => !p.isBot);
+      if (remainingHumans.length === 0) {
+        // No human players left — stop timers immediately and reset to lobby
+        this.abortGame('All human players left the match.');
+        return;
+      }
+
       if (this.players.length < 2) {
         // Not enough players to continue
         this.status = 'game_over';
@@ -406,19 +426,49 @@ export class GameRoom {
         }
         this.stopTurnTimer();
       } else {
-        // Adjust turn index if needed
-        if (pIndex <= this.currentTurnIndex) {
-          this.currentTurnIndex = (this.currentTurnIndex - 1 + this.players.length) % this.players.length;
+        if (wasCurrentTurn) {
+          this.drawPendingForPlayer = false;
+          this.drawnCard = null;
+          if (this.currentTurnIndex >= this.players.length) {
+            this.currentTurnIndex = 0;
+          }
+        } else if (pIndex < this.currentTurnIndex) {
+          this.currentTurnIndex = Math.max(0, this.currentTurnIndex - 1);
         }
         this.resetTurnTimer();
+        this.emitUpdate();
+        this.checkBotTurn();
+        return;
       }
     }
 
     this.emitUpdate();
   }
 
+  public abortGame(reason?: string): void {
+    this.stopTurnTimer();
+    this.status = 'lobby';
+    this.winner = null;
+    this.settlementSignature = null;
+    this.discardPile = [];
+    this.drawPile = [];
+    this.activeColor = null;
+    this.drawPendingForPlayer = false;
+    this.drawnCard = null;
+    this.pendingDrawCount = 0;
+    this.bannerAlert = null;
+    this.lastActionMessage = reason || 'Match ended by host.';
+    this.players.forEach(p => {
+      p.cardCount = 0;
+      p.hand = [];
+      p.hasCalledLastCard = false;
+      p.isReady = !!p.isBot;
+    });
+    this.emitUpdate();
+  }
+
   public toggleReady(playerId: string): void {
-    const p = this.players.find(pl => pl.id === playerId);
+    const p = this.players.find(pl => this.isSamePlayer(pl, playerId));
     if (p && !p.isBot) {
       p.isReady = !p.isReady;
       this.emitUpdate();
@@ -535,7 +585,7 @@ export class GameRoom {
 
   public playCard(playerId: string, cardId: string, chosenColor?: CardColor): { success: boolean; error?: string } {
     const curPlayer = this.getCurrentPlayer();
-    if (!curPlayer || curPlayer.id !== playerId) {
+    if (!curPlayer || !this.isSamePlayer(curPlayer, playerId)) {
       return { success: false, error: 'Not your turn' };
     }
 
@@ -675,7 +725,7 @@ export class GameRoom {
 
   public drawCard(playerId: string): { success: boolean; drawnCard?: Card; playable?: boolean; error?: string } {
     const curPlayer = this.getCurrentPlayer();
-    if (!curPlayer || curPlayer.id !== playerId) {
+    if (!curPlayer || !this.isSamePlayer(curPlayer, playerId)) {
       return { success: false, error: 'Not your turn' };
     }
 
@@ -761,7 +811,7 @@ export class GameRoom {
 
   public passTurn(playerId: string): { success: boolean; error?: string } {
     const curPlayer = this.getCurrentPlayer();
-    if (!curPlayer || curPlayer.id !== playerId) {
+    if (!curPlayer || !this.isSamePlayer(curPlayer, playerId)) {
       return { success: false, error: 'Not your turn' };
     }
 
@@ -777,7 +827,7 @@ export class GameRoom {
   }
 
   public callLastCard(playerId: string): void {
-    const p = this.players.find(pl => pl.id === playerId);
+    const p = this.players.find(pl => this.isSamePlayer(pl, playerId));
     if (p && p.cardCount <= 2) {
       p.hasCalledLastCard = true;
       this.setBanner('LAST_CARD', `🚨 ${p.name} CALLED LAST CARD!`, p.id, p.name);
@@ -884,7 +934,7 @@ export class GameRoom {
     }, 1000);
   }
 
-  private stopTurnTimer(): void {
+  public stopTurnTimer(): void {
     if (this.turnInterval) {
       clearInterval(this.turnInterval);
       this.turnInterval = null;
@@ -1056,16 +1106,23 @@ export class GameRoom {
       id: winner.id,
       name: winner.name,
       avatar: winner.avatar,
-      address: winner.address || '0x' + Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
+      address: winner.address,
     };
 
     this.lastActionMessage = `🏆 ${winner.name} WON THE MATCH! (+${roundPointsWon} pts)`;
     this.triggerSound('victory');
     this.triggerShake(2.5);
 
-    this.createSettlement();
+    const potAmountNum = this.getPotAmount();
+    const potAmount = potAmountNum.toFixed(0);
+    // Only pre-fill synthetic settlement signature for non-staking matches or bot winners;
+    // for human winners in staked matches, RoomManager populates the real Hemi Sepolia txHash!
+    if (!this.isStaking || potAmountNum <= 0 || winner.isBot || !winner.address || !winner.address.startsWith('0x')) {
+      this.createSettlement();
+    } else {
+      this.settlementSignature = null;
+    }
     if (this.onGameOverCallback) {
-      const potAmount = this.getPotAmount().toFixed(1);
       this.onGameOverCallback(winner, this.players, potAmount, this.cardsPlayedPerPlayer);
     }
     this.emitUpdate();
@@ -1075,14 +1132,14 @@ export class GameRoom {
     if (!this.winner) return;
 
     // Calculate live pot from stakes
-    const totalPot = this.getPotAmount().toFixed(1);
+    const totalPot = this.getPotAmount().toFixed(0);
     const nonce = Math.floor(Math.random() * 1000000);
     const timestamp = Date.now();
 
     // Generate settlement signature record for Hemi Testnet
     this.settlementSignature = {
       roomId: this.roomId,
-      winnerAddress: this.winner.address || '0x71C...b9',
+      winnerAddress: this.winner.address || '0xbD42f75Fee8aD5Dd260DAbbC0520b5A0Efa1F060',
       potAmount: totalPot,
       nonce,
       timestamp,
@@ -1142,7 +1199,7 @@ export class GameRoom {
 
   public getSanitizedStateForPlayer(targetPlayerId: string): GameState {
     const curPlayer = this.getCurrentPlayer();
-    const isTargetSeatedPlayer = this.players.some(p => p.id === targetPlayerId || (p.socketId && p.socketId === targetPlayerId));
+    const isTargetSeatedPlayer = this.players.some(p => this.isSamePlayer(p, targetPlayerId));
 
     // If target player is seated, cleanse them from spectators map if erroneously present
     if (isTargetSeatedPlayer) {
@@ -1150,7 +1207,7 @@ export class GameRoom {
         this.spectators.delete(targetPlayerId);
       }
       for (const [sId, spec] of Array.from(this.spectators.entries())) {
-        if (spec.socketId === targetPlayerId || this.players.some(p => p.id === sId || p.socketId === spec.socketId)) {
+        if (spec.socketId === targetPlayerId || this.players.some(p => this.isSamePlayer(p, sId) || p.socketId === spec.socketId)) {
           this.spectators.delete(sId);
         }
       }
@@ -1182,7 +1239,7 @@ export class GameRoom {
         tokenBalance: p.isBot ? 10000 : serverDb.getUserTokenBalance(p.address || p.id),
         // Hand is strictly hidden from other players! Only target player sees their own hand
         // In game_over state, all hands can optionally be revealed
-        hand: (p.id === targetPlayerId || (p.socketId && p.socketId === targetPlayerId)) || this.status === 'game_over' ? p.hand : undefined,
+        hand: this.isSamePlayer(p, targetPlayerId) || this.status === 'game_over' ? p.hand : undefined,
       })),
       isStaking: this.isStaking && parseFloat(this.buyInAmount || '0') > 0,
       buyInAmount: this.buyInAmount,
@@ -1195,8 +1252,8 @@ export class GameRoom {
       topDiscardCard: this.getTopDiscard(),
       activeColor: this.activeColor,
       drawPileCount: this.drawPile.length,
-      drawPendingForPlayer: (curPlayer?.id === targetPlayerId || (curPlayer?.socketId && curPlayer.socketId === targetPlayerId)) ? this.drawPendingForPlayer : false,
-      drawnCard: (curPlayer?.id === targetPlayerId || (curPlayer?.socketId && curPlayer.socketId === targetPlayerId)) ? this.drawnCard : null,
+      drawPendingForPlayer: this.isSamePlayer(curPlayer, targetPlayerId) ? this.drawPendingForPlayer : false,
+      drawnCard: this.isSamePlayer(curPlayer, targetPlayerId) ? this.drawnCard : null,
       pendingDrawCount: this.pendingDrawCount,
       lastActionMessage: this.lastActionMessage,
       bannerAlert: this.bannerAlert,
